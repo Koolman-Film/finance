@@ -1,15 +1,28 @@
 import type { Prisma } from "@prisma/client";
 
+import { currentYyyyMm } from "@/lib/thai-date";
+
 export type ListFilters = {
   branchId: string | null; // null means "all"
   yyyyMm: string | null; // null means "any"
 };
 
-/// Parse Next.js searchParams into typed filter state. Strings only — Next has
-/// already done the URL decoding for us.
+/// Parse Next.js searchParams into typed filter state. Defaults the month to
+/// the current calendar month in Asia/Bangkok when no `month` param is given;
+/// an explicit `?month=all` means "no month filter".
 export function parseFilters(sp: Record<string, string | string[] | undefined>): ListFilters {
   const branchId = typeof sp.branch === "string" && sp.branch !== "all" ? sp.branch : null;
-  const yyyyMm = typeof sp.month === "string" && /^\d{4}-\d{2}$/.test(sp.month) ? sp.month : null;
+
+  const monthParam = typeof sp.month === "string" ? sp.month : null;
+  let yyyyMm: string | null;
+  if (monthParam === "all") {
+    yyyyMm = null;
+  } else if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+    yyyyMm = monthParam;
+  } else {
+    yyyyMm = currentYyyyMm();
+  }
+
   return { branchId, yyyyMm };
 }
 

@@ -41,6 +41,20 @@ export function toGregorianYear(buddhistYear: number): number {
   return buddhistYear - 543;
 }
 
+/** Current month in Asia/Bangkok as "YYYY-MM" (Gregorian, never empty). */
+export function currentYyyyMm(): string {
+  // "en-CA" formats as ISO-like "YYYY-MM-DD"; we only need year-month.
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+  });
+  const parts = fmt.formatToParts(new Date());
+  const year = parts.find((p) => p.type === "year")?.value ?? "";
+  const month = parts.find((p) => p.type === "month")?.value ?? "";
+  return `${year}-${month}`;
+}
+
 /** "2026-05" → "พฤษภาคม 2569" (full Thai month + Buddhist year). */
 export function formatThaiYyyyMm(yyyyMm: string, opts: { short?: boolean } = {}): string {
   const m = /^(\d{4})-(\d{2})$/.exec(yyyyMm);

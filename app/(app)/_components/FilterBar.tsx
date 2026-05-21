@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { currentYyyyMm } from "@/lib/thai-date";
 
 type Props = {
   branches: { id: string; name: string }[];
@@ -28,12 +29,31 @@ export function FilterBar({ branches, canSelectAllBranches }: Props) {
 
   const branchValue =
     search.get("branch") ?? (canSelectAllBranches ? "all" : (branches[0]?.id ?? ""));
-  const monthValue = search.get("month") ?? "";
+
+  // Mirror lib/filters.ts: no `month` param = default to current; `month=all`
+  // = user explicitly chose "ทั้งหมด" (no month filter).
+  const monthParam = search.get("month");
+  const monthValue =
+    monthParam === "all"
+      ? ""
+      : monthParam && /^\d{4}-\d{2}$/.test(monthParam)
+        ? monthParam
+        : currentYyyyMm();
 
   function update(key: string, value: string) {
     const next = new URLSearchParams(search.toString());
-    if (!value || (key === "branch" && value === "all")) next.delete(key);
-    else next.set(key, value);
+    if (key === "branch") {
+      if (!value || value === "all") next.delete(key);
+      else next.set(key, value);
+    } else if (key === "month") {
+      // "" from the picker means the user picked "ทั้งหมด" — record it
+      // explicitly so we don't fall back to the current-month default.
+      if (!value) next.set("month", "all");
+      else next.set("month", value);
+    } else {
+      if (!value) next.delete(key);
+      else next.set(key, value);
+    }
     const qs = next.toString();
     startTransition(() => router.replace(`${pathname}${qs ? `?${qs}` : ""}`));
   }
