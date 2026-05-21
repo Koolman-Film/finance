@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { AlertCircle, Check, Loader2, Pencil, Plus, ShieldAlert, UserPlus, X } from "lucide-react";
+import { AlertCircle, Check, Loader2, Mail, Pencil, ShieldAlert, UserPlus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -286,8 +286,8 @@ function AddUserDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>เพิ่มผู้ใช้ใหม่</DialogTitle>
-          <DialogDescription>สร้างบัญชี Supabase Auth พร้อมกำหนดสิทธิ์ในระบบ</DialogDescription>
+          <DialogTitle>เชิญผู้ใช้ใหม่</DialogTitle>
+          <DialogDescription>ระบบจะส่งอีเมลคำเชิญ — ผู้รับจะตั้งรหัสผ่านเอง</DialogDescription>
         </DialogHeader>
         <form action={formAction} className="space-y-3">
           <input type="hidden" name="role" value={role} />
@@ -299,17 +299,10 @@ function AddUserDialog({
             {fieldErrors.email && <p className="text-destructive text-xs">{fieldErrors.email}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="add-name">ชื่อที่แสดง</Label>
+            <Label htmlFor="add-name">ชื่อที่แสดง (ผู้ใช้แก้ไขได้เองภายหลัง)</Label>
             <Input id="add-name" name="displayName" required />
             {fieldErrors.displayName && (
               <p className="text-destructive text-xs">{fieldErrors.displayName}</p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="add-password">รหัสผ่าน (อย่างน้อย 8 ตัวอักษร)</Label>
-            <Input id="add-password" name="password" type="password" required minLength={8} />
-            {fieldErrors.password && (
-              <p className="text-destructive text-xs">{fieldErrors.password}</p>
             )}
           </div>
           <div className="space-y-1.5">
@@ -361,8 +354,8 @@ function AddUserDialog({
               ยกเลิก
             </Button>
             <Button type="submit" className="flex-1" disabled={pending}>
-              {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              {pending ? "กำลังสร้าง..." : "สร้างผู้ใช้"}
+              {pending ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
+              {pending ? "กำลังส่ง..." : "ส่งคำเชิญ"}
             </Button>
           </div>
         </form>

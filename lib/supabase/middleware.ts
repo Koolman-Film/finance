@@ -31,7 +31,9 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isAuthPage = path === "/login";
+  // /login + /auth/* (invite callback, accept-invite page) are reachable
+  // without a session; they're the on-ramp to getting one.
+  const isAuthPage = path === "/login" || path.startsWith("/auth/");
   const isPublicAsset =
     path.startsWith("/_next") || path.startsWith("/favicon") || path === "/api/health";
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { Prisma } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
@@ -140,7 +141,6 @@ export async function toggleExpenseSourceActive(
 const createUserSchema = z.object({
   email: z.string().trim().toLowerCase().email("อีเมลไม่ถูกต้อง"),
   displayName: z.string().trim().min(1, "กรุณากรอกชื่อ").max(100),
-  password: z.string().min(8, "รหัสผ่านอย่างน้อย 8 ตัวอักษร"),
   role: z.enum(["ADMIN", "STAFF"]),
   branchId: z
     .string()
@@ -155,12 +155,25 @@ function supabaseAdmin() {
   return createClient(url, serviceKey, { auth: { persistSession: false } });
 }
 
+/// Origin of the currently-deployed app (for building the invite redirect
+/// URL). Reads from request headers so we work on local dev, Vercel preview,
+/// and finance.kool-man.com without an extra SITE_URL env var.
+async function siteOrigin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "finance.kool-man.com";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+/// Invite a new user by email. Creates the Supabase Auth user (no password —
+/// they'll set one when they click the email link) and our users row with
+/// the assigned role/branch. The invitee lands on /auth/callback → /auth/accept
+/// after clicking the email link.
 export async function createUser(_prev: ActionResult, form: FormData): Promise<ActionResult> {
   await requireAdmin();
   const parsed = createUserSchema.safeParse({
     email: form.get("email"),
     displayName: form.get("displayName"),
-    password: form.get("password"),
     role: form.get("role"),
     branchId: form.get("branchId"),
   });
@@ -181,22 +194,24 @@ export async function createUser(_prev: ActionResult, form: FormData): Promise<A
   }
 
   const admin = supabaseAdmin();
-  const { data: created, error: createErr } = await admin.auth.admin.createUser({
-    email: data.email,
-    password: data.password,
-    email_confirm: true,
+  const origin = await siteOrigin();
+  const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent("/auth/accept")}`;
+
+  const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(data.email, {
+    redirectTo,
+    data: { displayName: data.displayName },
   });
-  if (createErr) {
-    if (createErr.message.toLowerCase().includes("already")) {
-      return { ok: false, error: "มีผู้ใช้อีเมลนี้แล้วใน Supabase Auth" };
+  if (inviteErr) {
+    if (inviteErr.message.toLowerCase().includes("already")) {
+      return { ok: false, error: "มีผู้ใช้อีเมลนี้แล้วในระบบ — หากต้องการเชิญใหม่ให้ลบออกก่อน" };
     }
-    return { ok: false, error: createErr.message };
+    return { ok: false, error: inviteErr.message };
   }
 
   try {
     await prisma.user.create({
       data: {
-        id: created.user!.id,
+        id: invited.user!.id,
         email: data.email,
         displayName: data.displayName,
         role: data.role,
@@ -205,7 +220,7 @@ export async function createUser(_prev: ActionResult, form: FormData): Promise<A
     });
   } catch (err) {
     // Roll back the auth user so we don't leave an orphan
-    await admin.auth.admin.deleteUser(created.user!.id).catch(() => {});
+    await admin.auth.admin.deleteUser(invited.user!.id).catch(() => {});
     if (uniqueViolation(err)) return { ok: false, error: "มีผู้ใช้อีเมลนี้แล้วในระบบ" };
     throw err;
   }
