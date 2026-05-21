@@ -1,158 +1,234 @@
 # Finnix Film — inout (ระบบจัดการรายรับ-รายจ่าย)
 
 ระบบบันทึกรายรับ-รายจ่ายของกิจการ Finnix Film แบบใช้งานออนไลน์หลายคน
-พร้อมระบบสิทธิ์ผู้ใช้งาน (Admin / Staff สาขา) และระบบล็อคข้อมูลรายเดือน
 
-> **เวอร์ชันปัจจุบัน:** v0.5 — มีระบบสมาชิก, การกรอกรายรับ-รายจ่าย, การกรองตามสาขาและเดือน, การจำกัดสิทธิ์ตามสาขา
-> **ที่จะเพิ่มในเวอร์ชันถัดไป:** หน้าผู้ดูแลระบบ (จัดการสาขา/ผู้ใช้/แหล่งจ่ายเงิน), ล็อคข้อมูลรายเดือนผ่าน UI, แนบไฟล์, ส่งออก Excel/PDF
+**ในเวอร์ชันปัจจุบัน v1.0:**
+
+- ระบบสมาชิก (Email/Password) + จำกัดสิทธิ์ตามสาขา (Admin / Staff)
+- บันทึก/แก้ไข/ลบรายการรายรับ-รายจ่าย พร้อมประวัติผู้บันทึก
+- กรองตามสาขา + เดือน (เริ่มต้นที่เดือนปัจจุบัน, เลขปี พ.ศ.)
+- ล็อคข้อมูลรายเดือน (admin) — เดือนที่ล็อคแล้วแก้ไขไม่ได้
+- แนบไฟล์ (ใบงาน, หลักฐานการชำระเงิน, ใบเสร็จ) ผ่าน Supabase Storage
+- ส่งออกรายงาน Excel และ PDF (พร้อมฟอนต์ไทย Sarabun)
+- หน้าผู้ดูแลระบบสำหรับจัดการสาขา / แหล่งจ่ายเงิน / ผู้ใช้ / การตั้งค่า
 
 ---
-
-## เครื่องมือพัฒนา (อัตโนมัติเมื่อ commit)
-
-ทุกครั้งที่ `git commit` ระบบจะรัน ESLint + Prettier ให้กับไฟล์ที่ staged ไว้โดยอัตโนมัติ
-(ผ่าน Husky + lint-staged) ดังนั้นโค้ดในระบบจะอยู่ในรูปแบบเดียวกันเสมอ
-หากตรวจพบข้อผิดพลาด commit จะถูกยกเลิกพร้อมข้อความบอกสาเหตุ
-
-คำสั่งทดสอบที่ใช้ได้ตลอด:
-
-```bash
-npm run typecheck   # ตรวจสอบ TypeScript
-npx eslint .        # ตรวจสอบ ESLint
-npm run format      # จัดรูปแบบโค้ดทุกไฟล์
-```
 
 ## เทคโนโลยีที่ใช้
 
-- **Next.js 15** (App Router) + TypeScript + Tailwind CSS
-- **Postgres** ผ่าน **Supabase** (Database + Auth + Storage)
-- **Prisma** ORM
-- Deploy บน **Vercel**
+| ส่วน       | เลือกใช้                                                        |
+| ---------- | --------------------------------------------------------------- |
+| Framework  | Next.js 16 (App Router) + React 19 + TypeScript                 |
+| Styling    | Tailwind 4 (CSS-first) + shadcn/ui + Radix                      |
+| Database   | Postgres ผ่าน **Supabase**                                      |
+| ORM        | Prisma 6                                                        |
+| Auth       | Supabase Auth (Email/Password) ผ่าน `@supabase/ssr`             |
+| Storage    | Supabase Storage (signed URLs)                                  |
+| Export     | exceljs (Excel), @react-pdf/renderer + Sarabun (PDF)            |
+| Validation | zod 4                                                           |
+| Deploy     | Vercel                                                          |
+| Tooling    | ESLint 9 + Prettier + Husky + commitlint (Conventional Commits) |
 
 ---
 
-## ขั้นตอนการติดตั้งบนเครื่องสำหรับทดสอบ
+## ส่วนที่ 1: รันที่เครื่องตัวเอง (สำหรับทดสอบ)
 
-### 1) เตรียมโปรเจกต์บน Supabase
+### วิธี A — Supabase Local (Docker) แนะนำ
 
-1. ไปที่ <https://supabase.com> สมัครบัญชี (ฟรี)
-2. กด **New project** ตั้งชื่อ เช่น `finnix-inout` ตั้งรหัสฐานข้อมูล (จดเก็บไว้)
-3. รอประมาณ 2 นาทีให้โปรเจกต์พร้อม
-
-### 2) คัดลอกข้อมูลเชื่อมต่อ
-
-ในหน้าโปรเจกต์ Supabase ของคุณ:
-
-- ไปที่ **Project Settings → API** คัดลอก:
-  - `Project URL` → ใส่ใน `NEXT_PUBLIC_SUPABASE_URL`
-  - `anon public` key → ใส่ใน `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-  - `service_role` key → ใส่ใน `SUPABASE_SERVICE_ROLE_KEY` (เก็บเป็นความลับ)
-- ไปที่ **Project Settings → Database → Connection string** เลือก **URI**:
-  - แท็บ **Transaction (port 6543)** → ใส่ใน `DATABASE_URL` (ต่อท้ายด้วย `?pgbouncer=true`)
-  - แท็บ **Session (port 5432)** → ใส่ใน `DIRECT_URL`
-
-### 3) ตั้งค่าไฟล์ env บนเครื่อง
+ต้องมี [Docker Desktop](https://www.docker.com/products/docker-desktop/) และ
+[Supabase CLI](https://supabase.com/docs/guides/local-development) ติดตั้งไว้ก่อน
 
 ```bash
-cp .env.example .env
-# แก้ไขไฟล์ .env ใส่ค่าจริงทั้ง 5 ค่า
-```
-
-### 4) ติดตั้ง dependencies และสร้างตาราง
-
-```bash
+# 1. ติดตั้ง dependencies
 npm install
+
+# 2. เปิด Supabase ที่เครื่อง (Postgres + Auth + Storage + Studio)
+supabase start
+# จำค่าที่ขึ้นมาให้ดี: Project URL, Publishable key, Secret key, DB URL
+
+# 3. ตั้งค่า .env (คัดลอกจาก .env.example)
+cp .env.example .env
+# แก้ค่าใน .env ให้ตรงกับที่ supabase start แสดง
+
+# 4. สร้างตารางในฐานข้อมูล
 npx prisma migrate dev --name init
-npm run seed       # สร้าง 4 สาขา + 2 แหล่งจ่ายเงินตั้งต้น
-```
 
-### 5) สร้างผู้ดูแลระบบคนแรก
+# 5. เพิ่มข้อมูลตั้งต้น (4 สาขา + 2 แหล่งจ่ายเงิน)
+npm run seed
 
-ในหน้า Supabase: **Authentication → Users → Add user**
+# 6. ใส่ bucket สำหรับเก็บไฟล์แนบ
+docker exec $(docker ps --format "{{.Names}}" | grep supabase.*db | head -1) \
+  psql -U postgres -d postgres -f /dev/stdin \
+  < supabase/migrations/*_entry_files_bucket.sql
 
-- กรอกอีเมลกับรหัสผ่านที่ต้องการใช้เป็น admin
-- กด **Auto Confirm User** ✓
+# 7. สร้างผู้ดูแลระบบคนแรก
+npm run set-admin -- admin@finnix.local "ผู้ดูแลระบบ" admin12345
 
-จากนั้นที่เครื่อง:
-
-```bash
-npm run set-admin -- admin@example.com "ชื่อผู้ดูแล"
-```
-
-### 6) รันแอปพลิเคชัน
-
-```bash
+# 8. เริ่มเซิร์ฟเวอร์
 npm run dev
 ```
 
-เปิดเบราว์เซอร์ที่ <http://localhost:3000> แล้วเข้าสู่ระบบด้วยอีเมล/รหัสที่สร้างไว้
+เปิด <http://localhost:3000> → log in ด้วย `admin@finnix.local` / `admin12345`
 
----
+หน้า **Supabase Studio** สำหรับ debug DB: <http://localhost:54323>
 
-## การสร้างผู้ใช้สาขา (Staff)
-
-1. ใน Supabase Dashboard → **Authentication → Users → Add user** สร้างบัญชีพนักงาน
-2. รัน SQL ใน **SQL Editor** เพื่อบันทึกเข้าตาราง users ของเรา (หน้า Admin จะมาในเวอร์ชันถัดไป):
-
-   ```sql
-   INSERT INTO users (id, email, "displayName", role, "branchId", active, "updatedAt")
-   VALUES (
-     '<uuid-ของ-supabase-auth-user>',
-     'staff@example.com',
-     'ชื่อพนักงาน',
-     'STAFF',
-     (SELECT id FROM branches WHERE name = 'เชียงใหม่'),
-     true,
-     now()
-   );
-   ```
-
-> เวอร์ชันถัดไป (v1) จะมีหน้า `/admin/users` ให้สร้างผู้ใช้พร้อมกำหนดสาขาได้ทาง UI
-
----
-
-## การ Deploy ขึ้น Vercel
-
-1. push โค้ดขึ้น GitHub
-2. ที่ <https://vercel.com> เลือก **Import Project** ชี้ไปที่ repo นี้
-3. ตั้งค่า **Environment Variables** ทั้ง 5 ตัวจากไฟล์ `.env` ของคุณ
-4. กด **Deploy**
-
-หลัง deploy ครั้งแรก ให้รันคำสั่งเดียวที่เครื่องเพื่อ migrate ฐานข้อมูล production:
+หยุดเมื่อใช้เสร็จ:
 
 ```bash
-npm run prisma:deploy
+supabase stop          # เก็บข้อมูลไว้
+# หรือ
+supabase stop --no-backup    # ลบข้อมูลทิ้ง
+```
+
+### วิธี B — Supabase Cloud (ฟรี, ไม่ต้องลง Docker)
+
+1. ไปที่ <https://supabase.com> → สมัครบัญชี → **New project**
+2. ตั้งชื่อโปรเจกต์ + รหัส DB → รอ ~2 นาที
+3. ที่หน้าโปรเจกต์ของคุณ:
+   - **Project Settings → API**: คัดลอก `Project URL`, `anon public` key, `service_role` key
+   - **Project Settings → Database → Connection string → URI**: คัดลอก connection string
+4. ทำ step 1, 3, 4, 5, 7, 8 ของวิธี A (ข้าม step 2, 6)
+5. สำหรับ step 6 (bucket): ใน Supabase Dashboard → **SQL Editor** → paste เนื้อหาจาก
+   `supabase/migrations/*_entry_files_bucket.sql` แล้วกด Run
+
+---
+
+## ส่วนที่ 2: Deploy ขึ้น Vercel (Production)
+
+### เตรียม
+
+ต้องมี:
+
+- Supabase Cloud project (ทำตามวิธี B ข้างบน — ใช้ project เดียวกันได้)
+- บัญชี [Vercel](https://vercel.com)
+- โค้ดอยู่บน GitHub/GitLab/Bitbucket
+
+### ขั้นตอน
+
+1. ที่ Vercel: **Add New → Project** → import repo นี้
+2. ในหน้า **Environment Variables** ใส่ค่าทั้ง 5 ตัวเหมือนใน `.env`:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `DATABASE_URL`
+   - `DIRECT_URL`
+3. กด **Deploy** (รอ ~3 นาที)
+4. หลัง deploy ครั้งแรก ที่เครื่องของคุณ:
+   ```bash
+   # ตั้งค่า .env ให้ชี้ไปที่ Supabase Cloud
+   npm run prisma:deploy       # apply migrations
+   npm run seed                # ใส่ข้อมูลตั้งต้น
+   ```
+   จากนั้น apply bucket migration ผ่าน SQL Editor (step 5 ของวิธี B ข้างบน)
+5. สร้าง admin ที่ Supabase Dashboard → **Authentication → Users → Add user**
+   → กรอกอีเมล + รหัสผ่าน + Auto Confirm User
+6. ที่เครื่อง: `npm run set-admin -- your-email "ชื่อ"` (ใช้ env ที่ชี้ไปยัง prod)
+7. เปิด URL ของ Vercel → log in
+
+---
+
+## การจัดการประจำวัน
+
+ทำผ่านหน้าเว็บได้ทั้งหมด (ไม่ต้องแตะ SQL อีกแล้ว):
+
+| งาน                                          | ทำที่                                                     |
+| -------------------------------------------- | --------------------------------------------------------- |
+| เพิ่มสาขาใหม่                                | `/admin/branches`                                         |
+| เพิ่มแหล่งจ่ายเงิน (เช่น "เงินสำรองพี่หมวย") | `/admin/expense-sources`                                  |
+| เพิ่มพนักงานใหม่ + กำหนดสาขา                 | `/admin/users`                                            |
+| ล็อคเดือน (ปิดงบ)                            | `/admin/locks`                                            |
+| สิทธิ์การแก้ไขข้ามผู้บันทึก                  | `/admin/settings`                                         |
+| ออกรายงาน Excel/PDF                          | ปุ่ม PDF / Excel บน filter bar (ส่งออกตามตัวกรองปัจจุบัน) |
+
+### ลืม admin คนสุดท้าย?
+
+ระบบกันไว้แล้ว — admin คนสุดท้ายที่ active จะถูกล็อค ไม่ให้ลด/ปิดได้
+หากเกิดเหตุสุดวิสัย (เช่น ลบใน DB ตรงๆ) รัน:
+
+```bash
+npm run set-admin -- email-ของคุณ "ชื่อ"
 ```
 
 ---
 
-## โครงสร้างของโค้ดที่ควรรู้
+## โครงสร้างโค้ดที่ควรรู้
 
 ```
 app/
-  layout.tsx                — Root layout
-  page.tsx                   — เปลี่ยนเส้นทางไปยัง /summary
-  login/                     — หน้าเข้าสู่ระบบ
-  logout/                    — endpoint ออกจากระบบ
-  (app)/                     — กลุ่มเส้นทางที่ต้อง login ก่อน
-    layout.tsx               — header + tabs + filter
-    summary/page.tsx         — หน้าสรุปยอดรวม
-    income/page.tsx          — รายการรายรับ
-    expense/page.tsx         — รายการรายจ่าย
-    _components/             — Tabs, FilterBar, EntryTable, EntryModal, EntryForm
+  layout.tsx                   — Root layout
+  page.tsx                     — redirect → /summary
+  globals.css                  — Tailwind 4 + shadcn tokens (OKLCH)
+  login/                       — หน้าเข้าสู่ระบบ
+  logout/route.ts              — sign out endpoint
+  (app)/                       — กลุ่มเส้นทางที่ต้อง login
+    layout.tsx                 — header (มี admin link สำหรับ admin)
+    summary/page.tsx           — สรุปยอด
+    income/page.tsx            — รายการรายรับ
+    expense/page.tsx           — รายการรายจ่าย
+    _components/               — Tabs, FilterBar, EntryForm, FileSlot, ...
+  admin/                       — auth-gated (requireAdmin)
+    branches/, expense-sources/, users/, locks/, settings/
+  api/export/{excel,pdf}/      — endpoints สร้างไฟล์รายงาน
+components/
+  ui/                          — shadcn primitives (Button, Dialog, Select, ...)
+  ThaiMonthPicker.tsx          — month/year picker (เดือน + พ.ศ.)
 lib/
-  auth.ts                    — getCurrentUser / requireUser / requireAdmin
-  branch-scope.ts            — บังคับให้ staff เห็นเฉพาะสาขาของตัวเอง
-  entry-actions.ts           — Server Actions สำหรับเพิ่ม/แก้ไข/ลบรายการ
-  filters.ts                 — แปลง query string เป็น filter
-  format.ts                  — แสดงวันที่ พ.ศ. + เลขเงิน
-  prisma.ts                  — Prisma client singleton
-  supabase/                  — Supabase server/client/middleware helpers
-middleware.ts                — บังคับ session refresh + redirect ไป /login
+  auth.ts                      — requireUser / requireAdmin
+  branch-scope.ts              — บังคับ staff เห็นเฉพาะสาขาตัวเอง
+  entry-actions.ts             — บันทึก/แก้ไข/ลบ entry (zod validated)
+  admin-actions.ts             — server actions ของโซน admin
+  file-actions.ts              — upload / delete / signed URL ของไฟล์แนบ
+  exports/                     — Excel + PDF generators
+  thai-date.ts                 — เลข พ.ศ. + ชื่อเดือนไทย
+  filters.ts, format.ts, prisma.ts, utils.ts, supabase/
+proxy.ts                       — Next 16 middleware (refresh Supabase session)
 prisma/
-  schema.prisma              — โครงสร้างฐานข้อมูล
-  seed.ts                    — สร้างสาขา + แหล่งจ่ายเงินตั้งต้น
-scripts/
-  set-admin.ts               — ตั้งให้ user คนหนึ่งเป็น ADMIN
-reference.html               — ไฟล์อ้างอิงต้นแบบจาก Gemini (เก็บไว้เป็น reference)
+  schema.prisma                — โครงสร้างฐานข้อมูล
+  migrations/                  — Prisma migrations (app tables)
+  seed.ts                      — สาขา + แหล่งจ่ายเงินตั้งต้น
+supabase/
+  config.toml                  — config local supabase stack
+  migrations/                  — Supabase migrations (storage bucket)
+scripts/set-admin.ts           — สร้าง/แต่งตั้ง admin
+public/fonts/                  — Sarabun TTF (ใช้สร้าง PDF)
+reference.html                 — ต้นแบบ Gemini (เก็บเป็น reference)
 ```
+
+---
+
+## คำสั่งที่ใช้บ่อย
+
+```bash
+npm run dev              # dev server
+npm run build            # production build
+npm run typecheck        # tsc --noEmit
+npm run lint             # ESLint
+npm run format           # Prettier (เขียนทับ)
+npm run seed             # ใส่ข้อมูลตั้งต้น
+npm run set-admin        # เพิ่ม/แต่งตั้ง admin
+npm run prisma:migrate   # สร้าง migration ใหม่ (local)
+npm run prisma:deploy    # apply migrations ที่มีแล้ว (prod)
+supabase start / stop    # local Supabase
+supabase status          # ดู URL + keys
+```
+
+---
+
+## การพัฒนาต่อ (Conventional Commits)
+
+ทุก commit ต้องตรงรูป `<type>(<scope>): <message>` เช่น:
+
+```
+feat(admin): add branch sort order field
+fix(auth): refresh session on tab focus
+chore(deps): bump prisma to 6.20
+```
+
+`type` ที่อนุญาต: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`,
+`test`, `build`, `ci`, `chore`, `revert`
+
+`scope` ที่ใช้ในโปรเจกต์นี้: `db`, `auth`, `ui`, `entry`, `admin`,
+`lock`, `files`, `export`, `scripts`, `deploy`, `tooling`, `deps`
+
+ทุก commit จะรัน ESLint + Prettier อัตโนมัติบนไฟล์ที่ staged
+หาก ESLint พบปัญหา commit จะถูกยกเลิก
