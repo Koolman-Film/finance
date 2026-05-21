@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบันทึกรายรับ-รายจ่าย Finnix Film</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap');
+        body { font-family: 'Prompt', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div id="app" class="max-w-6xl mx-auto p-4 md:p-8">
+        <header class="mb-8 border-b-2 border-red-600 pb-4">
+            <h1 class="text-3xl font-bold text-red-700 uppercase">ระบบจัดการรายรับ-รายจ่าย Finnix Film</h1>
+            <p class="text-gray-500">สำหรับสาขา</p>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <div class="flex gap-4 mb-6">
+            <button onclick="changeTab('summary')" id="btn-summary" class="tab-btn px-6 py-2 rounded-lg bg-red-600 text-white font-semibold transition">สรุปภาพรวม</button>
+            <button onclick="changeTab('income')" id="btn-income" class="tab-btn px-6 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 font-semibold transition">บันทึกรายรับ</button>
+            <button onclick="changeTab('expense')" id="btn-expense" class="tab-btn px-6 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 font-semibold transition">บันทึกรายจ่าย</button>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div>
+                <label class="block text-sm font-semibold mb-1">สาขา</label>
+                <select id="filter-branch" onchange="renderApp()" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-red-500 outline-none">
+                    <option value="all">ทุกสาขา</option>
+                    <option value="เชียงใหม่">เชียงใหม่</option>
+                    <option value="ลำพูน">ลำพูน</option>
+                    <option value="ลำปาง">ลำปาง</option>
+                    <option value="พะเยา">พะเยา</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-1">เดือน</label>
+                <input type="month" id="filter-month" onchange="renderApp()" class="w-full border p-2 rounded-lg">
+            </div>
+            <div class="md:col-span-2 flex gap-2">
+                <button onclick="exportToPDF()" class="flex-1 bg-gray-800 text-white py-2 rounded-lg hover:bg-black transition">PDF</button>
+                <button onclick="exportToExcel()" class="flex-1 bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition">Excel</button>
+            </div>
+        </div>
+
+        <div id="content-area" class="bg-white p-6 rounded-xl shadow-sm min-h-[400px]">
+        </div>
+    </div>
+
+    <!-- Modal Form -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 id="modal-title" class="text-xl font-bold mb-4">เพิ่มรายการ</h2>
+            <form id="entry-form" onsubmit="saveEntry(event)" class="space-y-4">
+                <input type="hidden" id="edit-id">
+                <input type="hidden" id="entry-type">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+                    <div>
+                        <label class="block text-sm font-medium">สาขา</label>
+                        <select id="form-branch" required class="w-full border p-2 rounded">
+                            <option value="เชียงใหม่">เชียงใหม่</option>
+                            <option value="ลำพูน">ลำพูน</option>
+                            <option value="ลำปาง">ลำปาง</option>
+                            <option value="พะเยา">พะเยา</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">วันที่</label>
+                        <input type="date" id="form-date" required class="w-full border p-2 rounded">
+                    </div>
+                </div>
+
+                <!-- Income Specific Fields -->
+                <div id="income-fields" class="space-y-6 hidden border-t pt-4">
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <h3 class="font-bold text-blue-800 mb-3 border-b border-blue-200 pb-1">1. ข้อมูลลูกค้า</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div><label class="block text-xs text-gray-600">ชื่อลูกค้า</label><input type="text" id="form-cust-name" class="w-full border p-2 rounded"></div>
+                            <div><label class="block text-xs text-gray-600">เบอร์โทรลูกค้า</label><input type="tel" id="form-cust-tel" class="w-full border p-2 rounded"></div>
+                            <div><label class="block text-xs text-gray-600">จองผ่าน</label><input type="text" id="form-booked-via" class="w-full border p-2 rounded"></div>
+                            <div><label class="block text-xs text-gray-600">ยี่ห้อรถ</label><input type="text" id="form-car-brand" class="w-full border p-2 rounded"></div>
+                            <div><label class="block text-xs text-gray-600">รุ่นรถ/สีรถ</label><input type="text" id="form-car-model" class="w-full border p-2 rounded"></div>
+                            <div><label class="block text-xs text-gray-600">ทะเบียนรถ</label><input type="text" id="form-license" class="w-full border p-2 rounded"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-green-50 p-4 rounded-lg">
+                        <h3 class="font-bold text-green-800 mb-3 border-b border-green-200 pb-1">2. ข้อมูลสินค้า</h3>
+                        <div class="grid grid-cols-1 gap-4">
+                            <div><label class="block text-xs text-gray-600">ชนิดสินค้า</label><input type="text" id="form-prod-type" class="w-full border p-2 rounded"></div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-xs text-gray-600">สินค้าที่จอง</label><input type="text" id="form-booked-prod" class="w-full border p-2 rounded"></div>
+                                <div><label class="block text-xs text-gray-600">ราคาที่จอง</label><input type="number" id="form-booked-price" oninput="calculateProfit()" class="w-full border p-2 rounded"></div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-xs text-gray-600">สินค้าที่ขาย</label><input type="text" id="form-sold-prod" class="w-full border p-2 rounded"></div>
+                                <div><label class="block text-xs text-gray-600">ราคาที่ขาย</label><input type="number" id="form-sold-price" oninput="calculateProfit()" class="w-full border p-2 rounded"></div>
+                            </div>
+                            <div id="profit-display" class="font-bold text-sm mt-1 p-2 bg-white rounded border">ผลต่าง: 0 บาท</div>
+                        </div>
+                        <div class="mt-4"><label class="block text-xs text-gray-600">รายละเอียดสินค้า</label><textarea id="form-prod-detail" class="w-full border p-2 rounded"></textarea></div>
+                        <div class="mt-2"><label class="block text-xs text-gray-600">รายละเอียดอื่นๆ</label><textarea id="form-other-detail" class="w-full border p-2 rounded"></textarea></div>
+                        <div class="mt-4"><label class="block text-xs text-gray-600">แนบไฟล์ (ใบงาน)</label><input type="file" id="form-job-file" class="w-full border p-2 rounded text-sm bg-white"></div>
+                    </div>
+
+                    <div class="bg-yellow-50 p-4 rounded-lg">
+                        <h3 class="font-bold text-yellow-800 mb-3 border-b border-yellow-200 pb-1">3. ข้อมูลการชำระเงิน</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-gray-600">การชำระเงิน</label>
+                                <select id="form-payment-type" class="w-full border p-2 rounded">
+                                    <option value="เงินสด">เงินสด</option>
+                                    <option value="เงินโอน">เงินโอน</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-600">แนบไฟล์ (หลักฐาน)</label>
+                                <input type="file" id="form-income-file" class="w-full border p-2 rounded text-sm">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expense Specific Fields -->
+                <div id="expense-fields" class="space-y-4 hidden border-t pt-4">
+                    <div>
+                        <label class="block text-sm font-medium">รายละเอียดค่าใช้จ่าย</label>
+                        <textarea id="form-expense-detail" class="w-full border p-2 rounded"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">จ่ายจาก</label>
+                        <select id="form-expense-source" class="w-full border p-2 rounded">
+                            <option value="เงินสดย่อย">เงินสดย่อย</option>
+                            <option value="เงินสำรองพี่ขาว">เงินสำรองพี่ขาว</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">แนบไฟล์ (ใบเสร็จ)</label>
+                        <input type="file" id="form-expense-file" class="w-full border p-2 rounded">
+                    </div>
+                </div>
+
+                <div class="bg-red-50 p-4 rounded-lg border border-red-100">
+                    <label class="block text-sm font-bold text-red-800">ยอดเงินรวม (บาท)</label>
+                    <input type="number" id="form-amount" required class="w-full border p-2 rounded font-bold text-lg">
+                </div>
+
+                <div class="flex gap-2 pt-4">
+                    <button type="button" onclick="closeModal()" class="flex-1 py-2 border rounded hover:bg-gray-100">ยกเลิก</button>
+                    <button type="submit" class="flex-1 py-2 bg-red-600 text-white rounded hover:bg-red-700">บันทึกข้อมูล</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let data = JSON.parse(localStorage.getItem('fin_data')) || [];
+        let currentTab = 'summary';
+
+        function changeTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-red-600', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-gray-800');
+            });
+            document.getElementById('btn-' + tab).classList.remove('bg-gray-200', 'text-gray-800');
+            document.getElementById('btn-' + tab).classList.add('bg-red-600', 'text-white');
+            renderApp();
+        }
+
+        function getFilteredData() {
+            let filtered = data;
+            const branch = document.getElementById('filter-branch').value;
+            const month = document.getElementById('filter-month').value;
+            if (branch !== 'all') filtered = filtered.filter(item => item.branch === branch);
+            if (month) filtered = filtered.filter(item => item.date.startsWith(month));
+            return filtered;
+        }
+
+        function renderApp() {
+            const filtered = getFilteredData();
+            const container = document.getElementById('content-area');
+            
+            if (currentTab === 'summary') {
+                const income = filtered.filter(i => i.type === 'income').reduce((a, b) => a + Number(b.amount), 0);
+                const expense = filtered.filter(i => i.type === 'expense').reduce((a, b) => a + Number(b.amount), 0);
+                container.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-green-50 p-6 rounded-xl border border-green-200 shadow-sm"><p>รายรับรวม</p><h3 class="text-2xl font-bold text-green-600">${income.toLocaleString()}</h3></div>
+                        <div class="bg-red-50 p-6 rounded-xl border border-red-200 shadow-sm"><p>รายจ่ายรวม</p><h3 class="text-2xl font-bold text-red-600">${expense.toLocaleString()}</h3></div>
+                        <div class="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm"><p>คงเหลือสุทธิ</p><h3 class="text-2xl font-bold text-gray-800">${(income - expense).toLocaleString()}</h3></div>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="flex justify-between mb-4">
+                        <h2 class="text-xl font-bold">${currentTab === 'income' ? 'รายการรายรับ' : 'รายการรายจ่าย'}</h2>
+                        <button onclick="openModal('${currentTab}')" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">+ เพิ่มรายการ</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead><tr class="bg-gray-100 text-sm">
+                                <th class="p-3">วันที่</th>
+                                <th class="p-3">รายละเอียด</th>
+                                <th class="p-3">สาขา</th>
+                                <th class="p-3 text-right">จำนวนเงิน</th>
+                                <th class="p-3">จัดการ</th>
+                            </tr></thead>
+                            <tbody>
+                                ${filtered.filter(i => i.type === currentTab).map(i => `
+                                    <tr class="border-b hover:bg-gray-50 text-sm">
+                                        <td class="p-3">${i.date}</td>
+                                        <td class="p-3 font-medium">${i.custName || i.expenseDetail || '-'}</td>
+                                        <td class="p-3">${i.branch}</td>
+                                        <td class="p-3 text-right font-semibold">${Number(i.amount).toLocaleString()}</td>
+                                        <td class="p-3"><button onclick="editItem('${i.id}')" class="text-blue-600 hover:underline">แก้ไข</button></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+        }
+
+        function calculateProfit() {
+            const booked = parseFloat(document.getElementById('form-booked-price').value) || 0;
+            const sold = parseFloat(document.getElementById('form-sold-price').value) || 0;
+            const diff = sold - booked;
+            const display = document.getElementById('profit-display');
+            display.innerText = `ผลต่าง: ${diff >= 0 ? '+' : ''}${diff.toLocaleString()} บาท`;
+            display.className = `font-bold text-sm mt-1 p-2 bg-white rounded border ${diff >= 0 ? 'text-green-600 border-green-200' : 'text-red-600 border-red-200'}`;
+        }
+
+        function saveEntry(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-id').value;
+            const type = document.getElementById('entry-type').value;
+            
+            const incomeFileInput = document.getElementById('form-income-file');
+            const jobFileInput = document.getElementById('form-job-file');
+            const expenseFileInput = document.getElementById('form-expense-file');
+            
+            let fileName = null;
+            let jobFileName = null;
+            
+            if (id) { 
+                const existing = data.find(i => i.id === id);
+                if (existing) {
+                    fileName = existing.fileName; 
+                    jobFileName = existing.jobFileName;
+                } 
+            }
+            
+            if (incomeFileInput && incomeFileInput.files.length > 0) { fileName = incomeFileInput.files[0].name; }
+            if (jobFileInput && jobFileInput.files.length > 0) { jobFileName = jobFileInput.files[0].name; }
+            if (expenseFileInput && expenseFileInput.files.length > 0) { fileName = expenseFileInput.files[0].name; }
+
+            const entry = {
+                id: id || Date.now().toString(),
+                type: type,
+                branch: document.getElementById('form-branch').value,
+                date: document.getElementById('form-date').value,
+                amount: document.getElementById('form-amount').value,
+                fileName: fileName,
+                jobFileName: jobFileName,
+                custName: type === 'income' ? document.getElementById('form-cust-name').value : null,
+                custTel: type === 'income' ? document.getElementById('form-cust-tel').value : null,
+                bookedVia: type === 'income' ? document.getElementById('form-booked-via').value : null,
+                carBrand: type === 'income' ? document.getElementById('form-car-brand').value : null,
+                carModel: type === 'income' ? document.getElementById('form-car-model').value : null,
+                license: type === 'income' ? document.getElementById('form-license').value : null,
+                prodType: type === 'income' ? document.getElementById('form-prod-type').value : null,
+                bookedProd: type === 'income' ? document.getElementById('form-booked-prod').value : null,
+                bookedPrice: type === 'income' ? document.getElementById('form-booked-price').value : null,
+                soldProd: type === 'income' ? document.getElementById('form-sold-prod').value : null,
+                soldPrice: type === 'income' ? document.getElementById('form-sold-price').value : null,
+                prodDetail: type === 'income' ? document.getElementById('form-prod-detail').value : null,
+                otherDetail: type === 'income' ? document.getElementById('form-other-detail').value : null,
+                paymentType: type === 'income' ? document.getElementById('form-payment-type').value : null,
+                expenseDetail: type === 'expense' ? document.getElementById('form-expense-detail').value : null,
+                expenseSource: type === 'expense' ? document.getElementById('form-expense-source').value : null
+            };
+
+            if (id) {
+                data = data.map(item => item.id === id ? entry : item);
+            } else {
+                data.push(entry);
+            }
+            
+            localStorage.setItem('fin_data', JSON.stringify(data));
+            closeModal();
+            renderApp();
+        }
+
+        function openModal(type, item = null) {
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+            document.getElementById('entry-type').value = item ? item.type : type;
+            document.getElementById('edit-id').value = item ? item.id : '';
+            
+            const incomeFields = document.getElementById('income-fields');
+            const expenseFields = document.getElementById('expense-fields');
+            const targetType = item ? item.type : type;
+            
+            incomeFields.classList.toggle('hidden', targetType !== 'income');
+            expenseFields.classList.toggle('hidden', targetType !== 'expense');
+
+            if (item) {
+                document.getElementById('modal-title').innerText = 'แก้ไขรายการ';
+                document.getElementById('form-branch').value = item.branch;
+                document.getElementById('form-date').value = item.date;
+                document.getElementById('form-amount').value = item.amount;
+                if (targetType === 'income') {
+                    document.getElementById('form-cust-name').value = item.custName || '';
+                    document.getElementById('form-cust-tel').value = item.custTel || '';
+                    document.getElementById('form-booked-via').value = item.bookedVia || '';
+                    document.getElementById('form-car-brand').value = item.carBrand || '';
+                    document.getElementById('form-car-model').value = item.carModel || '';
+                    document.getElementById('form-license').value = item.license || '';
+                    document.getElementById('form-prod-type').value = item.prodType || '';
+                    document.getElementById('form-booked-prod').value = item.bookedProd || '';
+                    document.getElementById('form-booked-price').value = item.bookedPrice || '';
+                    document.getElementById('form-sold-prod').value = item.soldProd || '';
+                    document.getElementById('form-sold-price').value = item.soldPrice || '';
+                    calculateProfit();
+                    document.getElementById('form-prod-detail').value = item.prodDetail || '';
+                    document.getElementById('form-other-detail').value = item.otherDetail || '';
+                    document.getElementById('form-payment-type').value = item.paymentType || 'เงินสด';
+                } else {
+                    document.getElementById('form-expense-detail').value = item.expenseDetail || '';
+                    document.getElementById('form-expense-source').value = item.expenseSource || 'เงินสดย่อย';
+                }
+            } else {
+                document.getElementById('modal-title').innerText = 'เพิ่มรายการ';
+                document.getElementById('entry-form').reset();
+                calculateProfit();
+            }
+        }
+
+        function editItem(id) {
+            const item = data.find(i => i.id === id);
+            openModal(item.type, item);
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('entry-form').reset();
+        }
+
+        function exportToExcel() {
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(getFilteredData());
+            XLSX.utils.book_append_sheet(wb, ws, "Data");
+            XLSX.writeFile(wb, "Report.xlsx");
+        }
+
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.text("Business Finance Report", 14, 15);
+            doc.autoTable({
+                head: [['Date', 'Branch', 'Type', 'Amount']],
+                body: getFilteredData().map(i => [i.date, i.branch, i.type, i.amount])
+            });
+            doc.save('Report.pdf');
+        }
+
+        renderApp();
+    </script>
+</body>
+</html>
