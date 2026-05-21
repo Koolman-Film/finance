@@ -4,6 +4,7 @@ import { filtersToWhere, parseFilters } from "@/lib/filters";
 import { prisma } from "@/lib/prisma";
 
 import { EntryListView } from "../_components/EntryListView";
+import { toClientEntry } from "../_components/types";
 
 export default async function IncomePage({
   searchParams,
@@ -48,7 +49,7 @@ export default async function IncomePage({
   return (
     <EntryListView
       type="INCOME"
-      entries={entries}
+      entries={entries.map(toClientEntry)}
       branches={branches}
       expenseSources={expenseSources}
       lockedMonths={lockedMonths.map((l) => l.yyyyMm)}

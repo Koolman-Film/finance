@@ -9,12 +9,13 @@ import { canWriteToBranch } from "@/lib/branch-scope";
 import { toYyyyMm } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
+/// Returned by saveEntry / deleteEntry. Consumers define their own IDLE
+/// initial-state value locally — "use server" files can only export async
+/// functions (and types, which are erased), not value constants.
 export type EntryActionState =
   | { ok: true; id: string }
   | { ok: false; error: string; fieldErrors?: Record<string, string> }
   | { ok: false; idle: true };
-
-export const IDLE: EntryActionState = { ok: false, idle: true };
 
 const uuid = z.string().uuid();
 const yyyymmdd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "วันที่ไม่ถูกต้อง");
@@ -95,10 +96,7 @@ async function staffCanEditOthers(): Promise<boolean> {
   return row?.value !== "false"; // default true
 }
 
-export async function saveEntry(
-  _prev: EntryActionState,
-  form: FormData,
-): Promise<EntryActionState> {
+export async function saveEntry(form: FormData): Promise<EntryActionState> {
   const user = await requireUser();
 
   const parsed = entrySchema.safeParse(formDataToObject(form));

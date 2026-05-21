@@ -8,9 +8,14 @@ export function formatThaiDate(date: Date | string): string {
   }).format(d);
 }
 
+/// Always renders with two decimal places — the convention for currency
+/// (THB or otherwise). Callers don't need to remember to set the options.
 export function formatThb(amount: number | string): string {
   const n = typeof amount === "string" ? Number(amount) : amount;
-  return new Intl.NumberFormat("th-TH", { maximumFractionDigits: 2 }).format(n);
+  return new Intl.NumberFormat("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
 }
 
 export function toYyyyMm(date: Date | string): string {

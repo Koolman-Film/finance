@@ -18,12 +18,16 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { AppUser } from "@/lib/auth";
-import { IDLE, saveEntry, type EntryActionState } from "@/lib/entry-actions";
+import { saveEntry, type EntryActionState } from "@/lib/entry-actions";
 import { deleteEntryFile, uploadEntryFile } from "@/lib/file-actions";
 import { formatThb, toYyyyMm } from "@/lib/format";
 
 import { FileSlot } from "./FileSlot";
 import type { EntryWithRelations } from "./types";
+
+// Local idle state — "use server" files cannot export non-async values, so
+// the consumer keeps its own initial-state constant.
+const IDLE: EntryActionState = { ok: false, idle: true };
 
 type Props = {
   type: "INCOME" | "EXPENSE";
@@ -139,7 +143,7 @@ export function EntryForm({
     setSubmitting(true);
 
     const formData = new FormData(e.currentTarget);
-    const result = await saveEntry(IDLE, formData);
+    const result = await saveEntry(formData);
     setActionState(result);
 
     if (!result.ok) {
