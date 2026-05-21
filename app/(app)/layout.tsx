@@ -1,4 +1,5 @@
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { LogOut, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
@@ -34,8 +35,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               : `สาขา: ${user.branchName ?? "ยังไม่ได้กำหนด"}`}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2">
           <span className="text-muted-foreground hidden text-sm sm:block">{user.displayName}</span>
+          {user.role === "ADMIN" && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/admin">
+                <Settings2 className="size-4" />
+                ผู้ดูแล
+              </Link>
+            </Button>
+          )}
           <form action="/logout" method="POST">
             <Button type="submit" variant="outline" size="sm">
               <LogOut className="size-4" />

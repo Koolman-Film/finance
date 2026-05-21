@@ -1,0 +1,300 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
+import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
+
+import { requireAdmin } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export type ActionResult =
+  | { ok: true }
+  | { ok: false; error: string; fieldErrors?: Record<string, string> };
+
+function fieldErrorsFromZod(err: z.ZodError): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const issue of err.issues) {
+    const key = issue.path.join(".") || "_";
+    if (!out[key]) out[key] = issue.message;
+  }
+  return out;
+}
+
+function uniqueViolation(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+}
+
+// ============================================================================
+// Branches
+// ============================================================================
+
+const branchNameSchema = z.object({
+  name: z.string().trim().min(1, "กรุณากรอกชื่อสาขา").max(100),
+});
+
+export async function createBranch(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = branchNameSchema.safeParse({ name: form.get("name") });
+  if (!parsed.success) {
+    return { ok: false, error: "ข้อมูลไม่ถูกต้อง", fieldErrors: fieldErrorsFromZod(parsed.error) };
+  }
+  try {
+    const max = await prisma.branch.aggregate({ _max: { sortOrder: true } });
+    await prisma.branch.create({
+      data: { name: parsed.data.name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+    });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีสาขาชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/branches");
+  return { ok: true };
+}
+
+export async function renameBranch(id: string, name: string): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = branchNameSchema.safeParse({ name });
+  if (!parsed.success) {
+    return { ok: false, error: "ชื่อสาขาไม่ถูกต้อง" };
+  }
+  try {
+    await prisma.branch.update({ where: { id }, data: { name: parsed.data.name } });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีสาขาชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/branches");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function toggleBranchActive(id: string, active: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  await prisma.branch.update({ where: { id }, data: { active } });
+  revalidatePath("/admin/branches");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+// ============================================================================
+// Expense Sources
+// ============================================================================
+
+const expenseSourceNameSchema = z.object({
+  name: z.string().trim().min(1, "กรุณากรอกชื่อแหล่งจ่ายเงิน").max(100),
+});
+
+export async function createExpenseSource(
+  _prev: ActionResult,
+  form: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = expenseSourceNameSchema.safeParse({ name: form.get("name") });
+  if (!parsed.success) {
+    return { ok: false, error: "ข้อมูลไม่ถูกต้อง", fieldErrors: fieldErrorsFromZod(parsed.error) };
+  }
+  try {
+    const max = await prisma.expenseSource.aggregate({ _max: { sortOrder: true } });
+    await prisma.expenseSource.create({
+      data: { name: parsed.data.name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+    });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีแหล่งจ่ายเงินชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/expense-sources");
+  return { ok: true };
+}
+
+export async function renameExpenseSource(id: string, name: string): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = expenseSourceNameSchema.safeParse({ name });
+  if (!parsed.success) {
+    return { ok: false, error: "ชื่อไม่ถูกต้อง" };
+  }
+  try {
+    await prisma.expenseSource.update({ where: { id }, data: { name: parsed.data.name } });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีแหล่งจ่ายเงินชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/expense-sources");
+  return { ok: true };
+}
+
+export async function toggleExpenseSourceActive(
+  id: string,
+  active: boolean,
+): Promise<ActionResult> {
+  await requireAdmin();
+  await prisma.expenseSource.update({ where: { id }, data: { active } });
+  revalidatePath("/admin/expense-sources");
+  return { ok: true };
+}
+
+// ============================================================================
+// Users
+// ============================================================================
+
+const createUserSchema = z.object({
+  email: z.string().trim().toLowerCase().email("อีเมลไม่ถูกต้อง"),
+  displayName: z.string().trim().min(1, "กรุณากรอกชื่อ").max(100),
+  password: z.string().min(8, "รหัสผ่านอย่างน้อย 8 ตัวอักษร"),
+  role: z.enum(["ADMIN", "STAFF"]),
+  branchId: z
+    .string()
+    .uuid()
+    .nullable()
+    .or(z.literal("").transform(() => null)),
+});
+
+function supabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  return createClient(url, serviceKey, { auth: { persistSession: false } });
+}
+
+export async function createUser(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = createUserSchema.safeParse({
+    email: form.get("email"),
+    displayName: form.get("displayName"),
+    password: form.get("password"),
+    role: form.get("role"),
+    branchId: form.get("branchId"),
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "ข้อมูลไม่ครบถ้วน",
+      fieldErrors: fieldErrorsFromZod(parsed.error),
+    };
+  }
+  const data = parsed.data;
+  if (data.role === "STAFF" && !data.branchId) {
+    return {
+      ok: false,
+      error: "พนักงานสาขาต้องมีสาขากำกับ",
+      fieldErrors: { branchId: "เลือกสาขา" },
+    };
+  }
+
+  const admin = supabaseAdmin();
+  const { data: created, error: createErr } = await admin.auth.admin.createUser({
+    email: data.email,
+    password: data.password,
+    email_confirm: true,
+  });
+  if (createErr) {
+    if (createErr.message.toLowerCase().includes("already")) {
+      return { ok: false, error: "มีผู้ใช้อีเมลนี้แล้วใน Supabase Auth" };
+    }
+    return { ok: false, error: createErr.message };
+  }
+
+  try {
+    await prisma.user.create({
+      data: {
+        id: created.user!.id,
+        email: data.email,
+        displayName: data.displayName,
+        role: data.role,
+        branchId: data.role === "STAFF" ? data.branchId : null,
+      },
+    });
+  } catch (err) {
+    // Roll back the auth user so we don't leave an orphan
+    await admin.auth.admin.deleteUser(created.user!.id).catch(() => {});
+    if (uniqueViolation(err)) return { ok: false, error: "มีผู้ใช้อีเมลนี้แล้วในระบบ" };
+    throw err;
+  }
+
+  revalidatePath("/admin/users");
+  return { ok: true };
+}
+
+export async function updateUser(
+  id: string,
+  patch: {
+    displayName?: string;
+    role?: "ADMIN" | "STAFF";
+    branchId?: string | null;
+    active?: boolean;
+  },
+): Promise<ActionResult> {
+  await requireAdmin();
+  if (patch.role === "STAFF" && patch.branchId === null) {
+    return { ok: false, error: "พนักงานสาขาต้องมีสาขากำกับ" };
+  }
+  const data: Prisma.UserUpdateInput = {};
+  if (patch.displayName !== undefined) data.displayName = patch.displayName;
+  if (patch.role !== undefined) data.role = patch.role;
+  if (patch.branchId !== undefined) {
+    data.branch = patch.branchId ? { connect: { id: patch.branchId } } : { disconnect: true };
+  }
+  if (patch.active !== undefined) data.active = patch.active;
+
+  await prisma.user.update({ where: { id }, data });
+  revalidatePath("/admin/users");
+  return { ok: true };
+}
+
+// ============================================================================
+// Month Locks
+// ============================================================================
+
+const lockSchema = z.object({
+  yyyyMm: z.string().regex(/^\d{4}-\d{2}$/, "เดือนไม่ถูกต้อง"),
+  note: z
+    .string()
+    .max(500)
+    .nullable()
+    .or(z.literal("").transform(() => null)),
+});
+
+export async function lockMonth(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const user = await requireAdmin();
+  const parsed = lockSchema.safeParse({ yyyyMm: form.get("yyyyMm"), note: form.get("note") });
+  if (!parsed.success) {
+    return { ok: false, error: "ข้อมูลไม่ถูกต้อง", fieldErrors: fieldErrorsFromZod(parsed.error) };
+  }
+  try {
+    await prisma.monthLock.create({
+      data: {
+        yyyyMm: parsed.data.yyyyMm,
+        note: parsed.data.note,
+        lockedById: user.id,
+      },
+    });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "เดือนนี้ถูกล็อคไว้แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/locks");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function unlockMonth(yyyyMm: string): Promise<ActionResult> {
+  await requireAdmin();
+  await prisma.monthLock.delete({ where: { yyyyMm } }).catch(() => {});
+  revalidatePath("/admin/locks");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+// ============================================================================
+// Settings
+// ============================================================================
+
+export async function setStaffCanEditOthers(value: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  await prisma.setting.upsert({
+    where: { key: "staff_can_edit_others_in_branch" },
+    update: { value: value ? "true" : "false" },
+    create: { key: "staff_can_edit_others_in_branch", value: value ? "true" : "false" },
+  });
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
