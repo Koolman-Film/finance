@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,13 +22,10 @@ export default function AuthCallbackPage() {
 }
 
 function CallbackInner() {
-  const router = useRouter();
   const search = useSearchParams();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-
     async function handle() {
       const supabase = createSupabaseBrowserClient();
       const next = search.get("next") ?? "/summary";
@@ -37,13 +34,15 @@ function CallbackInner() {
       const code = search.get("code");
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (cancelled) return;
         if (error) {
           setError(error.message || "แลกเปลี่ยน code ไม่สำเร็จ");
           return;
         }
-        router.replace(next);
-        router.refresh();
+        // Full reload so the server-rendered destination sees the new
+        // session cookie that Supabase just wrote. Using Next's router
+        // here was unreliable — the destination's RSC fetch sometimes
+        // raced the cookie write and bounced back to /login.
+        window.location.replace(next);
         return;
       }
 
@@ -59,16 +58,11 @@ function CallbackInner() {
           access_token: accessToken,
           refresh_token: refreshToken,
         });
-        if (cancelled) return;
         if (error) {
           setError(error.message || "ตั้งค่า session ไม่สำเร็จ");
           return;
         }
-        // Strip the fragment from the URL before navigating, otherwise it
-        // tags along to the destination and confuses anything that reads it.
-        window.history.replaceState(null, "", window.location.pathname);
-        router.replace(next);
-        router.refresh();
+        window.location.replace(next);
         return;
       }
 
@@ -77,10 +71,7 @@ function CallbackInner() {
     }
 
     handle();
-    return () => {
-      cancelled = true;
-    };
-  }, [router, search]);
+  }, [search]);
 
   return <CallbackShell error={error} />;
 }
