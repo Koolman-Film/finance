@@ -26,6 +26,10 @@ export default async function IncomePage({
         branch: { select: { name: true } },
         createdBy: { select: { displayName: true } },
         updatedBy: { select: { displayName: true } },
+        files: {
+          select: { id: true, kind: true, originalName: true, sizeBytes: true, mimeType: true },
+          orderBy: { createdAt: "asc" },
+        },
       },
     }),
     prisma.branch.findMany({

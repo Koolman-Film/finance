@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Lock } from "lucide-react";
+import { Lock, Paperclip } from "lucide-react";
 
 import { formatThaiDate, formatThb } from "@/lib/format";
 
@@ -57,7 +57,15 @@ export function EntryTable({ type, entries, lockedMonths }: Props) {
             return (
               <tr key={e.id} className="hover:bg-muted/30 border-b text-sm">
                 <td className="p-3 whitespace-nowrap">{formatThaiDate(e.date)}</td>
-                <td className="p-3 font-medium">{summary}</td>
+                <td className="p-3 font-medium">
+                  {summary}
+                  {e.files && e.files.length > 0 && (
+                    <Paperclip
+                      className="text-muted-foreground ml-1 inline size-3.5"
+                      aria-label={`${e.files.length} ไฟล์แนบ`}
+                    />
+                  )}
+                </td>
                 <td className="p-3 whitespace-nowrap">{e.branch.name}</td>
                 <td className="text-muted-foreground p-3 whitespace-nowrap">
                   {e.createdBy?.displayName ?? "—"}

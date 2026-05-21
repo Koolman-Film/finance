@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
 
@@ -16,9 +16,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { AppUser } from "@/lib/auth";
-import { IDLE, saveEntry } from "@/lib/entry-actions";
+import { IDLE, saveEntry, type EntryActionState } from "@/lib/entry-actions";
+import { deleteEntryFile, uploadEntryFile } from "@/lib/file-actions";
 import { formatThb, toYyyyMm } from "@/lib/format";
 
+import { FileSlot } from "./FileSlot";
 import type { EntryWithRelations } from "./types";
 
 type Props = {
@@ -30,6 +32,8 @@ type Props = {
   currentUser: AppUser;
   onSuccess: () => void;
 };
+
+type FileKind = "JOB_SHEET" | "INCOME_PROOF" | "EXPENSE_RECEIPT";
 
 function defaultBranchId(user: AppUser, branches: Props["branches"]): string {
   if (user.role === "STAFF" && user.branchId) return user.branchId;
@@ -52,9 +56,10 @@ export function EntryForm({
   onSuccess,
 }: Props) {
   const router = useRouter();
-  const [state, formAction, pending] = useActionState(saveEntry, IDLE);
+  const [actionState, setActionState] = useState<EntryActionState>(IDLE);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Controlled fields that drive the profit-delta UI.
+  // Controlled fields that drive the profit-delta UI / hidden inputs.
   const [bookedPrice, setBookedPrice] = useState<string>(entry?.bookedPrice?.toString() ?? "");
   const [soldPrice, setSoldPrice] = useState<string>(entry?.soldPrice?.toString() ?? "");
   const [date, setDate] = useState<string>(isoDate(entry?.date ?? null));
@@ -66,6 +71,27 @@ export function EntryForm({
     entry?.expenseSourceId ?? expenseSources[0]?.id ?? "",
   );
 
+  // File staging — applied after the entry save succeeds.
+  const existingFilesByKind = useMemo(() => {
+    const map: Partial<
+      Record<
+        FileKind,
+        {
+          id: string;
+          originalName: string;
+          sizeBytes: number | null;
+          mimeType: string | null;
+          kind: FileKind;
+        }
+      >
+    > = {};
+    for (const f of entry?.files ?? [])
+      map[f.kind as FileKind] = { ...f, kind: f.kind as FileKind };
+    return map;
+  }, [entry?.files]);
+  const [pendingFiles, setPendingFiles] = useState<Partial<Record<FileKind, File | null>>>({});
+  const [deletedFileIds, setDeletedFileIds] = useState<Set<string>>(new Set());
+
   const profit = useMemo(() => {
     const b = Number(bookedPrice) || 0;
     const s = Number(soldPrice) || 0;
@@ -75,18 +101,71 @@ export function EntryForm({
   const lockedSet = useMemo(() => new Set(lockedMonths), [lockedMonths]);
   const monthIsLocked = lockedSet.has(toYyyyMm(date));
 
-  useEffect(() => {
-    if (state && "ok" in state && state.ok) {
-      router.refresh();
-      onSuccess();
-    }
-  }, [state, router, onSuccess]);
-
   const fieldErrors: Record<string, string> =
-    state && "ok" in state && !state.ok && "fieldErrors" in state ? (state.fieldErrors ?? {}) : {};
+    actionState && "ok" in actionState && !actionState.ok && "fieldErrors" in actionState
+      ? (actionState.fieldErrors ?? {})
+      : {};
+
+  function setFileFor(kind: FileKind, file: File | null) {
+    setPendingFiles((p) => ({ ...p, [kind]: file }));
+  }
+  function markDelete(id: string) {
+    setDeletedFileIds((s) => new Set(s).add(id));
+  }
+  function unmarkDelete(id: string) {
+    setDeletedFileIds((s) => {
+      const next = new Set(s);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+
+    const formData = new FormData(e.currentTarget);
+    const result = await saveEntry(IDLE, formData);
+    setActionState(result);
+
+    if (!result.ok) {
+      setSubmitting(false);
+      return;
+    }
+
+    const entryId = result.id;
+
+    // Run file ops in parallel; collect any failures into a single message.
+    const ops: Promise<{ ok: boolean; error?: string }>[] = [];
+    for (const kind of ["JOB_SHEET", "INCOME_PROOF", "EXPENSE_RECEIPT"] as const) {
+      const file = pendingFiles[kind];
+      if (file) ops.push(uploadEntryFile(entryId, kind, file));
+    }
+    for (const fid of deletedFileIds) {
+      ops.push(deleteEntryFile(fid));
+    }
+
+    if (ops.length > 0) {
+      const results = await Promise.all(ops);
+      const errors = results.filter((r) => !r.ok).map((r) => ("error" in r ? r.error : "") || "");
+      if (errors.length > 0) {
+        setActionState({
+          ok: false,
+          error: `รายการบันทึกแล้ว แต่ไฟล์บางส่วนมีปัญหา: ${errors.join(", ")}`,
+        });
+        setSubmitting(false);
+        router.refresh();
+        return;
+      }
+    }
+
+    router.refresh();
+    onSuccess();
+  }
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <input type="hidden" name="id" value={entry?.id ?? ""} />
       <input type="hidden" name="type" value={type} />
       <input type="hidden" name="branchId" value={branchId} />
@@ -210,6 +289,25 @@ export function EntryForm({
               defaultValue={entry?.otherDetail ?? ""}
               className="mt-3"
             />
+            <div className="mt-3">
+              <FileSlot
+                label="แนบไฟล์ (ใบงาน)"
+                existing={existingFilesByKind.JOB_SHEET ?? null}
+                pendingFile={pendingFiles.JOB_SHEET ?? null}
+                pendingDelete={
+                  !!existingFilesByKind.JOB_SHEET &&
+                  deletedFileIds.has(existingFilesByKind.JOB_SHEET.id)
+                }
+                onSelectFile={(f) => setFileFor("JOB_SHEET", f)}
+                onMarkDeleted={() =>
+                  existingFilesByKind.JOB_SHEET && markDelete(existingFilesByKind.JOB_SHEET.id)
+                }
+                onUnmarkDeleted={() =>
+                  existingFilesByKind.JOB_SHEET && unmarkDelete(existingFilesByKind.JOB_SHEET.id)
+                }
+                disabled={submitting || monthIsLocked}
+              />
+            </div>
           </Section>
 
           <Section title="3. ข้อมูลการชำระเงิน" toneClass="bg-amber-50/80 border-amber-100">
@@ -224,6 +322,27 @@ export function EntryForm({
                   <SelectItem value="TRANSFER">เงินโอน</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="mt-3">
+              <FileSlot
+                label="แนบไฟล์ (หลักฐานการชำระเงิน)"
+                existing={existingFilesByKind.INCOME_PROOF ?? null}
+                pendingFile={pendingFiles.INCOME_PROOF ?? null}
+                pendingDelete={
+                  !!existingFilesByKind.INCOME_PROOF &&
+                  deletedFileIds.has(existingFilesByKind.INCOME_PROOF.id)
+                }
+                onSelectFile={(f) => setFileFor("INCOME_PROOF", f)}
+                onMarkDeleted={() =>
+                  existingFilesByKind.INCOME_PROOF &&
+                  markDelete(existingFilesByKind.INCOME_PROOF.id)
+                }
+                onUnmarkDeleted={() =>
+                  existingFilesByKind.INCOME_PROOF &&
+                  unmarkDelete(existingFilesByKind.INCOME_PROOF.id)
+                }
+                disabled={submitting || monthIsLocked}
+              />
             </div>
           </Section>
         </>
@@ -254,6 +373,25 @@ export function EntryForm({
               </SelectContent>
             </Select>
           </div>
+          <FileSlot
+            label="แนบไฟล์ (ใบเสร็จ)"
+            existing={existingFilesByKind.EXPENSE_RECEIPT ?? null}
+            pendingFile={pendingFiles.EXPENSE_RECEIPT ?? null}
+            pendingDelete={
+              !!existingFilesByKind.EXPENSE_RECEIPT &&
+              deletedFileIds.has(existingFilesByKind.EXPENSE_RECEIPT.id)
+            }
+            onSelectFile={(f) => setFileFor("EXPENSE_RECEIPT", f)}
+            onMarkDeleted={() =>
+              existingFilesByKind.EXPENSE_RECEIPT &&
+              markDelete(existingFilesByKind.EXPENSE_RECEIPT.id)
+            }
+            onUnmarkDeleted={() =>
+              existingFilesByKind.EXPENSE_RECEIPT &&
+              unmarkDelete(existingFilesByKind.EXPENSE_RECEIPT.id)
+            }
+            disabled={submitting || monthIsLocked}
+          />
         </div>
       )}
 
@@ -275,20 +413,24 @@ export function EntryForm({
         )}
       </div>
 
-      {state && "ok" in state && !state.ok && "error" in state && state.error && (
-        <div className="text-destructive bg-destructive/5 border-destructive/20 flex items-start gap-2 rounded-md border p-2.5 text-sm">
-          <AlertCircle className="mt-0.5 size-4 shrink-0" />
-          <span>{state.error}</span>
-        </div>
-      )}
+      {actionState &&
+        "ok" in actionState &&
+        !actionState.ok &&
+        "error" in actionState &&
+        actionState.error && (
+          <div className="text-destructive bg-destructive/5 border-destructive/20 flex items-start gap-2 rounded-md border p-2.5 text-sm">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <span>{actionState.error}</span>
+          </div>
+        )}
 
       <div className="flex gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onSuccess} className="flex-1">
           ยกเลิก
         </Button>
-        <Button type="submit" disabled={pending || monthIsLocked} className="flex-1">
-          {pending && <Loader2 className="size-4 animate-spin" />}
-          {pending ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
+        <Button type="submit" disabled={submitting || monthIsLocked} className="flex-1">
+          {submitting && <Loader2 className="size-4 animate-spin" />}
+          {submitting ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
         </Button>
       </div>
     </form>
