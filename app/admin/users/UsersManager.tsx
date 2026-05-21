@@ -1,7 +1,18 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { AlertCircle, Check, Loader2, Mail, Pencil, ShieldAlert, UserPlus, X } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  Loader2,
+  Mail,
+  MailPlus,
+  Pencil,
+  ShieldAlert,
+  UserPlus,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createUser, updateUser, type ActionResult } from "@/lib/admin-actions";
+import { createUser, resendInvite, updateUser, type ActionResult } from "@/lib/admin-actions";
 
 const IDLE: ActionResult = { ok: false, error: "" };
 
@@ -105,6 +116,7 @@ function UserRow({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(user.displayName);
 
@@ -129,10 +141,21 @@ function UserRow({
       return;
     }
     setError(null);
+    setInfo(null);
     startTransition(async () => {
       const res = await updateUser(user.id, { displayName: trimmed });
       if (!res.ok) setError(res.error);
       else setEditingName(false);
+    });
+  }
+
+  function resend() {
+    setError(null);
+    setInfo(null);
+    startTransition(async () => {
+      const res = await resendInvite(user.id);
+      if (!res.ok) setError(res.error);
+      else setInfo(`ส่งคำเชิญใหม่ไปยัง ${user.email} แล้ว`);
     });
   }
 
@@ -198,7 +221,26 @@ function UserRow({
           </span>
         )}
       </td>
-      <td className="text-muted-foreground p-3">{user.email}</td>
+      <td className="text-muted-foreground p-3">
+        <div className="flex items-center gap-1">
+          <span>{user.email}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={resend}
+            disabled={pending}
+            className="size-6 p-0 opacity-60 hover:opacity-100"
+            title="ส่งคำเชิญใหม่ (รหัสเก่าจะใช้ไม่ได้)"
+          >
+            {pending ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <MailPlus className="size-3" />
+            )}
+          </Button>
+        </div>
+      </td>
       <td className="p-3">
         <Select
           value={user.role}
@@ -255,6 +297,11 @@ function UserRow({
         {error && (
           <p className="text-destructive mt-1 flex items-center gap-1 text-xs">
             <AlertCircle className="size-3" /> {error}
+          </p>
+        )}
+        {info && (
+          <p className="mt-1 flex items-center gap-1 text-xs text-emerald-700">
+            <CheckCircle2 className="size-3" /> {info}
           </p>
         )}
       </td>

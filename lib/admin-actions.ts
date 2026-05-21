@@ -229,6 +229,33 @@ export async function createUser(_prev: ActionResult, form: FormData): Promise<A
   return { ok: true };
 }
 
+/// Resend the Supabase invite email for an existing user. Useful when:
+///   - the user lost the original email
+///   - the original token expired (Supabase invite links are valid 24h)
+///   - the user accidentally clicked the link in a different browser/device
+/// Calling inviteUserByEmail again invalidates the previous token and
+/// generates a fresh one.
+export async function resendInvite(userId: string): Promise<ActionResult> {
+  await requireAdmin();
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  if (!user) return { ok: false, error: "ไม่พบผู้ใช้" };
+
+  const admin = supabaseAdmin();
+  const origin = await siteOrigin();
+  const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent("/auth/accept")}`;
+
+  const { error } = await admin.auth.admin.inviteUserByEmail(user.email, { redirectTo });
+  if (error) {
+    return { ok: false, error: `ส่งคำเชิญใหม่ไม่สำเร็จ: ${error.message}` };
+  }
+  revalidatePath("/admin/users");
+  return { ok: true };
+}
+
 export async function updateUser(
   id: string,
   patch: {
