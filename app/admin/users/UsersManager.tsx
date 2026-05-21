@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { AlertCircle, Loader2, Plus, ShieldAlert, UserPlus } from "lucide-react";
+import { AlertCircle, Check, Loader2, Pencil, Plus, ShieldAlert, UserPlus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -105,12 +105,34 @@ function UserRow({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(user.displayName);
 
-  function patch(p: { role?: "ADMIN" | "STAFF"; branchId?: string | null; active?: boolean }) {
+  function patch(p: {
+    displayName?: string;
+    role?: "ADMIN" | "STAFF";
+    branchId?: string | null;
+    active?: boolean;
+  }) {
     setError(null);
     startTransition(async () => {
       const res = await updateUser(user.id, p);
       if (!res.ok) setError(res.error);
+    });
+  }
+
+  function saveName() {
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === user.displayName) {
+      setEditingName(false);
+      setNameDraft(user.displayName);
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await updateUser(user.id, { displayName: trimmed });
+      if (!res.ok) setError(res.error);
+      else setEditingName(false);
     });
   }
 
@@ -122,12 +144,58 @@ function UserRow({
   return (
     <tr className="border-b">
       <td className="p-3 font-medium">
-        {user.displayName}
-        {protectedLastAdmin && (
-          <ShieldAlert
-            className="ml-1 inline size-3.5 text-amber-600"
-            aria-label="ผู้ดูแลระบบคนสุดท้าย"
-          />
+        {editingName ? (
+          <div className="flex items-center gap-1">
+            <Input
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              disabled={pending}
+              autoFocus
+              className="h-8"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveName();
+                if (e.key === "Escape") {
+                  setNameDraft(user.displayName);
+                  setEditingName(false);
+                }
+              }}
+            />
+            <Button type="button" size="sm" onClick={saveName} disabled={pending}>
+              {pending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setNameDraft(user.displayName);
+                setEditingName(false);
+              }}
+              disabled={pending}
+            >
+              <X className="size-3" />
+            </Button>
+          </div>
+        ) : (
+          <span className="inline-flex items-center gap-1">
+            {user.displayName}
+            {protectedLastAdmin && (
+              <ShieldAlert
+                className="inline size-3.5 text-amber-600"
+                aria-label="ผู้ดูแลระบบคนสุดท้าย"
+              />
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setEditingName(true)}
+              className="size-6 p-0 opacity-60 hover:opacity-100"
+              title="แก้ไขชื่อ"
+            >
+              <Pencil className="size-3" />
+            </Button>
+          </span>
         )}
       </td>
       <td className="text-muted-foreground p-3">{user.email}</td>
