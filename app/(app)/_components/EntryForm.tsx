@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Search } from "lucide-react";
 
+import { CustomerSearchDialog } from "@/components/CustomerSearchDialog";
 import { ThaiDatePicker } from "@/components/ThaiDatePicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +72,17 @@ export function EntryForm({
   const [expenseSourceId, setExpenseSourceId] = useState<string>(
     entry?.expenseSourceId ?? expenseSources[0]?.id ?? "",
   );
+
+  // Customer fields are controlled so the "search past customer" dialog can
+  // backfill all five at once on selection.
+  const [custName, setCustName] = useState<string>(entry?.custName ?? "");
+  const [custTel, setCustTel] = useState<string>(entry?.custTel ?? "");
+  const [bookedVia, setBookedVia] = useState<string>(entry?.bookedVia ?? "");
+  const [carBrand, setCarBrand] = useState<string>(entry?.carBrand ?? "");
+  const [carModel, setCarModel] = useState<string>(entry?.carModel ?? "");
+  const [license, setLicense] = useState<string>(entry?.license ?? "");
+
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
 
   // File staging — applied after the entry save succeeds.
   const existingFilesByKind = useMemo(() => {
@@ -211,27 +223,66 @@ export function EntryForm({
 
       {type === "INCOME" && (
         <>
-          <Section title="1. ข้อมูลลูกค้า" toneClass="bg-blue-50/80 border-blue-100">
+          <Section
+            title="1. ข้อมูลลูกค้า"
+            toneClass="bg-blue-50/80 border-blue-100"
+            action={
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setCustomerSearchOpen(true)}
+              >
+                <Search className="size-3.5" />
+                ค้นหาลูกค้าเก่า
+              </Button>
+            }
+          >
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <FormField
                 label="ชื่อลูกค้า"
                 name="custName"
-                defaultValue={entry?.custName ?? ""}
+                value={custName}
+                onChange={setCustName}
                 error={fieldErrors.custName}
               />
               <FormField
                 label="เบอร์โทรลูกค้า"
                 name="custTel"
                 type="tel"
-                defaultValue={entry?.custTel ?? ""}
+                value={custTel}
+                onChange={setCustTel}
                 error={fieldErrors.custTel}
               />
-              <FormField label="จองผ่าน" name="bookedVia" defaultValue={entry?.bookedVia ?? ""} />
-              <FormField label="ยี่ห้อรถ" name="carBrand" defaultValue={entry?.carBrand ?? ""} />
-              <FormField label="รุ่นรถ/สีรถ" name="carModel" defaultValue={entry?.carModel ?? ""} />
-              <FormField label="ทะเบียนรถ" name="license" defaultValue={entry?.license ?? ""} />
+              <FormField
+                label="จองผ่าน"
+                name="bookedVia"
+                value={bookedVia}
+                onChange={setBookedVia}
+              />
+              <FormField label="ยี่ห้อรถ" name="carBrand" value={carBrand} onChange={setCarBrand} />
+              <FormField
+                label="รุ่นรถ/สีรถ"
+                name="carModel"
+                value={carModel}
+                onChange={setCarModel}
+              />
+              <FormField label="ทะเบียนรถ" name="license" value={license} onChange={setLicense} />
             </div>
           </Section>
+
+          <CustomerSearchDialog
+            open={customerSearchOpen}
+            onOpenChange={setCustomerSearchOpen}
+            onSelect={(hit) => {
+              setCustName(hit.custName ?? "");
+              setCustTel(hit.custTel ?? "");
+              setBookedVia(hit.bookedVia ?? "");
+              setCarBrand(hit.carBrand ?? "");
+              setCarModel(hit.carModel ?? "");
+              setLicense(hit.license ?? "");
+            }}
+          />
 
           <Section title="2. ข้อมูลสินค้า" toneClass="bg-emerald-50/80 border-emerald-100">
             <FormField label="ชนิดสินค้า" name="prodType" defaultValue={entry?.prodType ?? ""} />
@@ -438,15 +489,20 @@ export function EntryForm({
 function Section({
   title,
   toneClass,
+  action,
   children,
 }: {
   title: string;
   toneClass: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section className={`rounded-lg border p-4 ${toneClass}`}>
-      <h3 className="mb-3 border-b border-current/20 pb-1 font-bold">{title}</h3>
+      <div className="mb-3 flex items-center justify-between gap-2 border-b border-current/20 pb-1">
+        <h3 className="font-bold">{title}</h3>
+        {action}
+      </div>
       {children}
     </section>
   );
