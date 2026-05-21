@@ -1,0 +1,57 @@
+import { requireUser } from "@/lib/auth";
+import { entryBranchScope } from "@/lib/branch-scope";
+import { filtersToWhere, parseFilters } from "@/lib/filters";
+import { prisma } from "@/lib/prisma";
+
+import { EntryListView } from "../_components/EntryListView";
+
+export default async function IncomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const user = await requireUser();
+  const sp = await searchParams;
+  const filters = parseFilters(sp);
+
+  const where = {
+    AND: [entryBranchScope(user), filtersToWhere(filters), { type: "INCOME" as const }],
+  };
+
+  const [entries, branches, expenseSources, lockedMonths] = await Promise.all([
+    prisma.entry.findMany({
+      where,
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      include: {
+        branch: { select: { name: true } },
+        createdBy: { select: { displayName: true } },
+        updatedBy: { select: { displayName: true } },
+      },
+    }),
+    prisma.branch.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
+    }),
+    prisma.expenseSource.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
+    }),
+    prisma.monthLock.findMany({ select: { yyyyMm: true } }),
+  ]);
+
+  return (
+    <EntryListView
+      type="INCOME"
+      entries={entries}
+      branches={branches}
+      expenseSources={expenseSources}
+      lockedMonths={lockedMonths.map((l) => l.yyyyMm)}
+      currentUser={user}
+      openAction={
+        typeof sp.add === "string" ? sp.add : typeof sp.edit === "string" ? sp.edit : null
+      }
+    />
+  );
+}
