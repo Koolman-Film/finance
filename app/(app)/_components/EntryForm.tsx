@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
 
+import { ThaiDatePicker } from "@/components/ThaiDatePicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -194,14 +195,11 @@ export function EntryForm({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="form-date">วันที่</Label>
-          <Input
-            id="form-date"
-            type="date"
-            name="date"
-            required
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
+          {/* The Picker is purely cosmetic — submission still goes through the
+              hidden `date` input so the server-side zod schema gets a clean
+              Gregorian YYYY-MM-DD without caring about the UI representation. */}
+          <input type="hidden" name="date" value={date} />
+          <ThaiDatePicker id="form-date" value={date} onValueChange={setDate} />
           {monthIsLocked && (
             <p className="text-destructive flex items-center gap-1 text-xs">
               <AlertCircle className="size-3" />

@@ -16,6 +16,9 @@ export const THAI_MONTH_FULL = [
   "ธันวาคม",
 ] as const;
 
+// Sun-first, matching JS getDay() / Intl conventions.
+export const THAI_WEEKDAY_SHORT = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"] as const;
+
 export const THAI_MONTH_SHORT = [
   "ม.ค.",
   "ก.พ.",
