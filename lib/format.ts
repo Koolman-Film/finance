@@ -18,6 +18,16 @@ export function formatThb(amount: number | string): string {
   }).format(n);
 }
 
+/// Compact currency: 12,000 → "฿12K", 1,200,000 → "฿1.2M". Used for chart
+/// axis tick labels where space is tight; full-precision values still show
+/// up in tooltips via formatThb.
+export function formatThbCompact(amount: number): string {
+  return new Intl.NumberFormat("th-TH", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(amount);
+}
+
 export function toYyyyMm(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   const m = String(d.getMonth() + 1).padStart(2, "0");
