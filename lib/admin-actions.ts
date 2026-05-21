@@ -227,6 +227,32 @@ export async function updateUser(
   if (patch.role === "STAFF" && patch.branchId === null) {
     return { ok: false, error: "พนักงานสาขาต้องมีสาขากำกับ" };
   }
+
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { role: true, active: true },
+  });
+  if (!target) return { ok: false, error: "ไม่พบผู้ใช้" };
+
+  // Guard against losing the last active ADMIN. If the patch would leave
+  // the target as anything other than an active admin AND the target is
+  // currently the only active admin, refuse.
+  const nextRole = patch.role ?? target.role;
+  const nextActive = patch.active ?? target.active;
+  const wouldStayActiveAdmin = nextRole === "ADMIN" && nextActive;
+  if (!wouldStayActiveAdmin && target.role === "ADMIN" && target.active) {
+    const otherActiveAdmins = await prisma.user.count({
+      where: { role: "ADMIN", active: true, id: { not: id } },
+    });
+    if (otherActiveAdmins === 0) {
+      return {
+        ok: false,
+        error:
+          "ไม่สามารถลดสิทธิ์หรือปิดใช้งานผู้ดูแลระบบคนสุดท้ายได้ — กรุณาเพิ่มผู้ดูแลระบบคนอื่นก่อน",
+      };
+    }
+  }
+
   const data: Prisma.UserUpdateInput = {};
   if (patch.displayName !== undefined) data.displayName = patch.displayName;
   if (patch.role !== undefined) data.role = patch.role;

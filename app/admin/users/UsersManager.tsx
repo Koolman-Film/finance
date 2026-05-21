@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { AlertCircle, Loader2, Plus, UserPlus } from "lucide-react";
+import { AlertCircle, Loader2, Plus, ShieldAlert, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +36,15 @@ type User = {
 
 type Branch = { id: string; name: string };
 
-export function UsersManager({ users, branches }: { users: User[]; branches: Branch[] }) {
+export function UsersManager({
+  users,
+  branches,
+  lastAdminId,
+}: {
+  users: User[];
+  branches: Branch[];
+  lastAdminId: string | null;
+}) {
   const [addOpen, setAddOpen] = useState(false);
 
   return (
@@ -48,6 +56,14 @@ export function UsersManager({ users, branches }: { users: User[]; branches: Bra
           เพิ่มผู้ใช้
         </Button>
       </div>
+
+      {lastAdminId && (
+        <p className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
+          <ShieldAlert className="size-4 shrink-0" />
+          เหลือผู้ดูแลระบบคนเดียวในระบบ — บทบาทและสถานะของคนนี้ถูกล็อคไว้
+          จนกว่าจะเพิ่มผู้ดูแลระบบคนใหม่
+        </p>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
@@ -62,7 +78,12 @@ export function UsersManager({ users, branches }: { users: User[]; branches: Bra
           </thead>
           <tbody>
             {users.map((u) => (
-              <UserRow key={u.id} user={u} branches={branches} />
+              <UserRow
+                key={u.id}
+                user={u}
+                branches={branches}
+                protectedLastAdmin={u.id === lastAdminId}
+              />
             ))}
           </tbody>
         </table>
@@ -73,7 +94,15 @@ export function UsersManager({ users, branches }: { users: User[]; branches: Bra
   );
 }
 
-function UserRow({ user, branches }: { user: User; branches: Branch[] }) {
+function UserRow({
+  user,
+  branches,
+  protectedLastAdmin,
+}: {
+  user: User;
+  branches: Branch[];
+  protectedLastAdmin: boolean;
+}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -85,9 +114,22 @@ function UserRow({ user, branches }: { user: User; branches: Branch[] }) {
     });
   }
 
+  // When this row is the only active admin, lock role + active controls.
+  // The server enforces the same rule; the disabled state prevents the
+  // dropdown from showing a stale value before the server rejection lands.
+  const lockReason = protectedLastAdmin ? "เป็นผู้ดูแลระบบคนสุดท้าย ห้ามแก้ไข" : undefined;
+
   return (
     <tr className="border-b">
-      <td className="p-3 font-medium">{user.displayName}</td>
+      <td className="p-3 font-medium">
+        {user.displayName}
+        {protectedLastAdmin && (
+          <ShieldAlert
+            className="ml-1 inline size-3.5 text-amber-600"
+            aria-label="ผู้ดูแลระบบคนสุดท้าย"
+          />
+        )}
+      </td>
       <td className="text-muted-foreground p-3">{user.email}</td>
       <td className="p-3">
         <Select
@@ -98,9 +140,9 @@ function UserRow({ user, branches }: { user: User; branches: Branch[] }) {
               branchId: v === "ADMIN" ? null : (user.branchId ?? branches[0]?.id ?? null),
             })
           }
-          disabled={pending}
+          disabled={pending || protectedLastAdmin}
         >
-          <SelectTrigger className="h-8 w-32">
+          <SelectTrigger className="h-8 w-32" title={lockReason}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -136,7 +178,8 @@ function UserRow({ user, branches }: { user: User; branches: Branch[] }) {
           size="sm"
           variant={user.active ? "secondary" : "outline"}
           onClick={() => patch({ active: !user.active })}
-          disabled={pending}
+          disabled={pending || protectedLastAdmin}
+          title={lockReason}
         >
           {pending && <Loader2 className="size-3 animate-spin" />}
           {user.active ? "ใช้งาน" : "ปิดใช้งาน"}

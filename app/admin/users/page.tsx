@@ -25,6 +25,9 @@ export default async function UsersPage() {
     }),
   ]);
 
+  const activeAdmins = users.filter((u) => u.role === "ADMIN" && u.active);
+  const lastAdminId = activeAdmins.length === 1 ? activeAdmins[0].id : null;
+
   return (
     <UsersManager
       users={users.map((u) => ({
@@ -37,6 +40,7 @@ export default async function UsersPage() {
         active: u.active,
       }))}
       branches={branches}
+      lastAdminId={lastAdminId}
     />
   );
 }
