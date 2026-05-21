@@ -34,6 +34,7 @@ type Props = {
   entry: EntryWithRelations | null;
   branches: { id: string; name: string }[];
   expenseSources: { id: string; name: string }[];
+  paymentMethods: { id: string; name: string }[];
   lockedMonths: string[];
   currentUser: AppUser;
   onSuccess: () => void;
@@ -57,6 +58,7 @@ export function EntryForm({
   entry,
   branches,
   expenseSources,
+  paymentMethods,
   lockedMonths,
   currentUser,
   onSuccess,
@@ -72,7 +74,9 @@ export function EntryForm({
   const [branchId, setBranchId] = useState<string>(
     entry?.branchId ?? defaultBranchId(currentUser, branches),
   );
-  const [paymentType, setPaymentType] = useState<string>(entry?.paymentType ?? "CASH");
+  const [paymentMethodId, setPaymentMethodId] = useState<string>(
+    entry?.paymentMethodId ?? paymentMethods[0]?.id ?? "",
+  );
   const [expenseSourceId, setExpenseSourceId] = useState<string>(
     entry?.expenseSourceId ?? expenseSources[0]?.id ?? "",
   );
@@ -186,7 +190,7 @@ export function EntryForm({
       <input type="hidden" name="id" value={entry?.id ?? ""} />
       <input type="hidden" name="type" value={type} />
       <input type="hidden" name="branchId" value={branchId} />
-      <input type="hidden" name="paymentType" value={paymentType} />
+      <input type="hidden" name="paymentMethodId" value={paymentMethodId} />
       <input type="hidden" name="expenseSourceId" value={expenseSourceId} />
 
       <div className="bg-muted/40 grid grid-cols-1 gap-4 rounded-lg p-4 md:grid-cols-2">
@@ -366,13 +370,16 @@ export function EntryForm({
           <Section title="3. ข้อมูลการชำระเงิน" toneClass="bg-amber-50/80 border-amber-100">
             <div className="space-y-1.5">
               <Label>การชำระเงิน</Label>
-              <Select value={paymentType} onValueChange={setPaymentType}>
+              <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="เลือกช่องทาง" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="CASH">เงินสด</SelectItem>
-                  <SelectItem value="TRANSFER">เงินโอน</SelectItem>
+                  {paymentMethods.map((pm) => (
+                    <SelectItem key={pm.id} value={pm.id}>
+                      {pm.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

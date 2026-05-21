@@ -38,7 +38,7 @@ export async function buildExcel(data: ExportData): Promise<Buffer> {
   });
 
   for (const r of data.rows) {
-    const paymentOrSource = r.type === "INCOME" ? (r.paymentType ?? "") : (r.expenseSource ?? "");
+    const paymentOrSource = r.type === "INCOME" ? (r.paymentMethod ?? "") : (r.expenseSource ?? "");
     const row = sheet.addRow([
       r.date,
       r.type === "INCOME" ? "รายรับ" : "รายจ่าย",

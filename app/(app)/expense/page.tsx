@@ -19,7 +19,7 @@ export default async function ExpensePage({
     AND: [entryBranchScope(user), filtersToWhere(filters), { type: "EXPENSE" as const }],
   };
 
-  const [entries, branches, expenseSources, lockedMonths] = await Promise.all([
+  const [entries, branches, expenseSources, paymentMethods, lockedMonths] = await Promise.all([
     prisma.entry.findMany({
       where,
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
@@ -44,6 +44,11 @@ export default async function ExpensePage({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: { id: true, name: true },
     }),
+    prisma.paymentMethod.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
+    }),
     prisma.monthLock.findMany({ select: { yyyyMm: true } }),
   ]);
 
@@ -53,6 +58,7 @@ export default async function ExpensePage({
       entries={entries.map(toClientEntry)}
       branches={branches}
       expenseSources={expenseSources}
+      paymentMethods={paymentMethods}
       lockedMonths={lockedMonths.map((l) => l.yyyyMm)}
       currentUser={user}
       openAction={

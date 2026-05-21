@@ -58,7 +58,7 @@ const incomeSchema = baseSchema.extend({
   soldPrice: optionalDecimal,
   prodDetail: optionalTrim,
   otherDetail: optionalTrim,
-  paymentType: z.enum(["CASH", "TRANSFER"]).default("CASH"),
+  paymentMethodId: uuid.nullable().or(z.literal("").transform(() => null)),
 });
 
 const expenseSchema = baseSchema.extend({
@@ -137,7 +137,7 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
           soldPrice: data.soldPrice,
           prodDetail: data.prodDetail,
           otherDetail: data.otherDetail,
-          paymentType: data.paymentType,
+          paymentMethodId: data.paymentMethodId,
           expenseDetail: null,
           expenseSourceId: null,
         }
@@ -155,7 +155,7 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
           soldPrice: null,
           prodDetail: null,
           otherDetail: null,
-          paymentType: null,
+          paymentMethodId: null,
           expenseDetail: data.expenseDetail,
           expenseSourceId: data.expenseSourceId,
         };

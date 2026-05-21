@@ -15,6 +15,7 @@ type Props = {
   entries: EntryWithRelations[];
   branches: { id: string; name: string }[];
   expenseSources: { id: string; name: string }[];
+  paymentMethods: { id: string; name: string }[];
   lockedMonths: string[];
   currentUser: AppUser;
   openAction: string | null;
@@ -25,6 +26,7 @@ export function EntryListView({
   entries,
   branches,
   expenseSources,
+  paymentMethods,
   lockedMonths,
   currentUser,
   openAction,
@@ -74,6 +76,7 @@ export function EntryListView({
         entry={editingEntry}
         branches={branches}
         expenseSources={expenseSources}
+        paymentMethods={paymentMethods}
         lockedMonths={lockedMonths}
         currentUser={currentUser}
       />

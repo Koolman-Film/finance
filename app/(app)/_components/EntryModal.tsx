@@ -19,6 +19,7 @@ type Props = {
   entry: EntryWithRelations | null;
   branches: { id: string; name: string }[];
   expenseSources: { id: string; name: string }[];
+  paymentMethods: { id: string; name: string }[];
   lockedMonths: string[];
   currentUser: AppUser;
 };
@@ -30,6 +31,7 @@ export function EntryModal({
   entry,
   branches,
   expenseSources,
+  paymentMethods,
   lockedMonths,
   currentUser,
 }: Props) {
@@ -52,6 +54,7 @@ export function EntryModal({
           entry={entry}
           branches={branches}
           expenseSources={expenseSources}
+          paymentMethods={paymentMethods}
           lockedMonths={lockedMonths}
           currentUser={currentUser}
           onSuccess={() => onOpenChange(false)}

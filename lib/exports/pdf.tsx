@@ -176,7 +176,7 @@ function ReportDocument({ data }: { data: ExportData }) {
                 <Text style={styles.cellCar}>{r.car ?? "—"}</Text>
                 <Text style={styles.cellItem}>{r.item}</Text>
                 <Text style={styles.cellPayment}>
-                  {r.type === "INCOME" ? (r.paymentType ?? "—") : (r.expenseSource ?? "—")}
+                  {r.type === "INCOME" ? (r.paymentMethod ?? "—") : (r.expenseSource ?? "—")}
                 </Text>
                 <Text style={styles.cellWho}>{r.createdByName ?? "—"}</Text>
                 <Text

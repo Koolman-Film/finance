@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { href: "/admin/branches", label: "สาขา" },
   { href: "/admin/expense-sources", label: "แหล่งจ่ายเงิน" },
+  { href: "/admin/payment-methods", label: "ช่องทางการชำระเงิน" },
   { href: "/admin/users", label: "ผู้ใช้งาน" },
   { href: "/admin/locks", label: "ล็อคเดือน" },
   { href: "/admin/settings", label: "ตั้งค่า" },

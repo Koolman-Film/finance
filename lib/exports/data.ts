@@ -18,8 +18,9 @@ export type ExportRow = {
   /// INCOME: sold (or booked / type) product. EXPENSE: expenseDetail.
   item: string;
   amount: number;
-  /// INCOME: "เงินสด" / "เงินโอน". EXPENSE: null.
-  paymentType: string | null;
+  /// INCOME: name from the admin-managed PaymentMethod table
+  /// (e.g. "เงินสด", "เงินโอน", "บัตรเครดิต"). EXPENSE: null.
+  paymentMethod: string | null;
   /// EXPENSE: source name (e.g. "เงินสดย่อย"). INCOME: null.
   expenseSource: string | null;
   createdByName: string | null;
@@ -78,6 +79,7 @@ export async function loadExportData(
     include: {
       branch: { select: { name: true } },
       expenseSource: { select: { name: true } },
+      paymentMethod: { select: { name: true } },
       createdBy: { select: { displayName: true } },
     },
   });
@@ -94,8 +96,7 @@ export async function loadExportData(
         ? e.soldProd || e.bookedProd || e.prodType || "—"
         : e.expenseDetail || "—",
     amount: Number(e.amount),
-    paymentType:
-      e.paymentType === "CASH" ? "เงินสด" : e.paymentType === "TRANSFER" ? "เงินโอน" : null,
+    paymentMethod: e.paymentMethod?.name ?? null,
     expenseSource: e.expenseSource?.name ?? null,
     createdByName: e.createdBy?.displayName ?? null,
   }));

@@ -135,6 +135,62 @@ export async function toggleExpenseSourceActive(
 }
 
 // ============================================================================
+// Payment Methods
+// ============================================================================
+
+const paymentMethodNameSchema = z.object({
+  name: z.string().trim().min(1, "กรุณากรอกชื่อช่องทาง").max(100),
+});
+
+export async function createPaymentMethod(
+  _prev: ActionResult,
+  form: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = paymentMethodNameSchema.safeParse({ name: form.get("name") });
+  if (!parsed.success) {
+    return { ok: false, error: "ข้อมูลไม่ถูกต้อง", fieldErrors: fieldErrorsFromZod(parsed.error) };
+  }
+  try {
+    const max = await prisma.paymentMethod.aggregate({ _max: { sortOrder: true } });
+    await prisma.paymentMethod.create({
+      data: { name: parsed.data.name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+    });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีช่องทางชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/payment-methods");
+  return { ok: true };
+}
+
+export async function renamePaymentMethod(id: string, name: string): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = paymentMethodNameSchema.safeParse({ name });
+  if (!parsed.success) {
+    return { ok: false, error: "ชื่อช่องทางไม่ถูกต้อง" };
+  }
+  try {
+    await prisma.paymentMethod.update({ where: { id }, data: { name: parsed.data.name } });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีช่องทางชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/payment-methods");
+  return { ok: true };
+}
+
+export async function togglePaymentMethodActive(
+  id: string,
+  active: boolean,
+): Promise<ActionResult> {
+  await requireAdmin();
+  await prisma.paymentMethod.update({ where: { id }, data: { active } });
+  revalidatePath("/admin/payment-methods");
+  return { ok: true };
+}
+
+// ============================================================================
 // Users
 // ============================================================================
 

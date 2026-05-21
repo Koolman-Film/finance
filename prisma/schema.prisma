@@ -22,11 +22,6 @@ enum EntryType {
   EXPENSE
 }
 
-enum PaymentType {
-  CASH      // เงินสด
-  TRANSFER  // เงินโอน
-}
-
 enum FileKind {
   JOB_SHEET        // ใบงาน (income, attached to product section)
   INCOME_PROOF     // หลักฐานการรับเงิน (income, attached to payment section)
@@ -79,6 +74,22 @@ model ExpenseSource {
   @@map("expense_sources")
 }
 
+/// Admin-managed list of payment methods used on income entries (e.g.
+/// "เงินสด", "เงินโอน", "บัตรเครดิต"). Replaces the old PaymentType enum
+/// so the shop can add new channels without a code change.
+model PaymentMethod {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries Entry[]
+
+  @@map("payment_methods")
+}
+
 /// Income or expense entry. Income-only fields live alongside expense-only
 /// fields and are nullable; the `type` discriminator says which set is in use.
 model Entry {
@@ -105,7 +116,8 @@ model Entry {
   soldPrice    Decimal? @db.Decimal(12, 2)
   prodDetail   String?
   otherDetail  String?
-  paymentType  PaymentType?
+  paymentMethodId String?       @db.Uuid
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
 
   // ---- Expense-only ----
   expenseDetail   String?

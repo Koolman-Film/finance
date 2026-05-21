@@ -251,9 +251,10 @@ function jitter(base: number, pct: number): number {
 async function main() {
   const reset = process.argv.includes("--reset");
 
-  const [branches, sources, admin] = await Promise.all([
+  const [branches, sources, paymentMethods, admin] = await Promise.all([
     prisma.branch.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.expenseSource.findMany({ where: { active: true } }),
+    prisma.paymentMethod.findMany({ where: { active: true } }),
     prisma.user.findFirst({ where: { role: "ADMIN", active: true } }),
   ]);
 
@@ -263,6 +264,10 @@ async function main() {
   }
   if (sources.length === 0) {
     console.error('No expense sources found. Run "npm run seed" first.');
+    process.exit(1);
+  }
+  if (paymentMethods.length === 0) {
+    console.error('No payment methods found. Run "npx prisma migrate deploy" first.');
     process.exit(1);
   }
   if (!admin) {
@@ -317,7 +322,7 @@ async function main() {
             bookedPrice,
             soldProd: product.name,
             soldPrice,
-            paymentType: Math.random() > 0.45 ? "TRANSFER" : "CASH",
+            paymentMethodId: pick(paymentMethods).id,
             createdById: admin.id,
             updatedById: admin.id,
           },
