@@ -2,6 +2,8 @@
 
 ระบบบันทึกรายรับ-รายจ่ายของกิจการ Finnix Film แบบใช้งานออนไลน์หลายคน
 
+> **Production**: <https://finance.kool-man.com> · สำหรับขั้นตอน deploy ดู [docs/DEPLOY.md](./docs/DEPLOY.md)
+
 **ในเวอร์ชันปัจจุบัน v1.0:**
 
 - ระบบสมาชิก (Email/Password) + จำกัดสิทธิ์ตามสาขา (Admin / Staff)
@@ -62,13 +64,13 @@ docker exec $(docker ps --format "{{.Names}}" | grep supabase.*db | head -1) \
   < supabase/migrations/*_entry_files_bucket.sql
 
 # 7. สร้างผู้ดูแลระบบคนแรก
-npm run set-admin -- admin@finnix.local "ผู้ดูแลระบบ" admin12345
+npm run set-admin -- admin@kool-man.com "ผู้ดูแลระบบ" admin12345
 
 # 8. เริ่มเซิร์ฟเวอร์
 npm run dev
 ```
 
-เปิด <http://localhost:3000> → log in ด้วย `admin@finnix.local` / `admin12345`
+เปิด <http://localhost:3000> → log in ด้วย `admin@kool-man.com` / `admin12345`
 
 หน้า **Supabase Studio** สำหรับ debug DB: <http://localhost:54323>
 
@@ -93,37 +95,14 @@ supabase stop --no-backup    # ลบข้อมูลทิ้ง
 
 ---
 
-## ส่วนที่ 2: Deploy ขึ้น Vercel (Production)
+## ส่วนที่ 2: Deploy ขึ้น Production
 
-### เตรียม
+แยกเป็นเอกสารของตัวเอง — ดู **[docs/DEPLOY.md](./docs/DEPLOY.md)** สำหรับขั้นตอนตั้งแต่
+สร้าง Supabase Cloud project, ใส่ env vars ใน Vercel, ผูกโดเมน
+`finance.kool-man.com`, สร้าง storage bucket, จนถึงสร้างผู้ดูแลคนแรก
 
-ต้องมี:
-
-- Supabase Cloud project (ทำตามวิธี B ข้างบน — ใช้ project เดียวกันได้)
-- บัญชี [Vercel](https://vercel.com)
-- โค้ดอยู่บน GitHub/GitLab/Bitbucket
-
-### ขั้นตอน
-
-1. ที่ Vercel: **Add New → Project** → import repo นี้
-2. ในหน้า **Environment Variables** ใส่ค่าทั้ง 5 ตัวเหมือนใน `.env`:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `DATABASE_URL`
-   - `DIRECT_URL`
-3. กด **Deploy** (รอ ~3 นาที)
-4. หลัง deploy ครั้งแรก ที่เครื่องของคุณ:
-   ```bash
-   # ตั้งค่า .env ให้ชี้ไปที่ Supabase Cloud
-   npm run prisma:deploy       # apply migrations
-   npm run seed                # ใส่ข้อมูลตั้งต้น
-   ```
-   จากนั้น apply bucket migration ผ่าน SQL Editor (step 5 ของวิธี B ข้างบน)
-5. สร้าง admin ที่ Supabase Dashboard → **Authentication → Users → Add user**
-   → กรอกอีเมล + รหัสผ่าน + Auto Confirm User
-6. ที่เครื่อง: `npm run set-admin -- your-email "ชื่อ"` (ใช้ env ที่ชี้ไปยัง prod)
-7. เปิด URL ของ Vercel → log in
+หากสนใจว่าทำไมเลือกใช้ subdomain (ไม่ใช่ `kool-man.com/finance`) ดู
+**[docs/URL-STRATEGY.md](./docs/URL-STRATEGY.md)**
 
 ---
 
