@@ -2,6 +2,7 @@ import { type AppUser } from "@/lib/auth";
 import { entryBranchScope } from "@/lib/branch-scope";
 import { filtersToWhere, parseFilters, type ListFilters } from "@/lib/filters";
 import { prisma } from "@/lib/prisma";
+import { formatThaiYyyyMm } from "@/lib/thai-date";
 
 export type ExportType = "income" | "expense" | "all";
 
@@ -10,9 +11,16 @@ export type ExportRow = {
   yyyyMm: string;
   branchName: string;
   type: "INCOME" | "EXPENSE";
-  detail: string;
+  /// INCOME: customer name. EXPENSE: null.
+  customer: string | null;
+  /// INCOME: "{brand} {model} ({license})" with any missing parts dropped. EXPENSE: null.
+  car: string | null;
+  /// INCOME: sold (or booked / type) product. EXPENSE: expenseDetail.
+  item: string;
   amount: number;
+  /// INCOME: "เงินสด" / "เงินโอน". EXPENSE: null.
   paymentType: string | null;
+  /// EXPENSE: source name (e.g. "เงินสดย่อย"). INCOME: null.
   expenseSource: string | null;
   createdByName: string | null;
 };
@@ -25,6 +33,19 @@ export type ExportData = {
   totalIncome: number;
   totalExpense: number;
 };
+
+function composeCar(
+  brand: string | null,
+  model: string | null,
+  license: string | null,
+): string | null {
+  const parts: string[] = [];
+  if (brand) parts.push(brand);
+  if (model) parts.push(model);
+  const text = parts.join(" ");
+  if (license) return text ? `${text} (${license})` : license;
+  return text || null;
+}
 
 /// Load + format the rows for an export. Caller (the route handler) has
 /// already done auth and branch-scoping; we just translate the query params
@@ -66,10 +87,12 @@ export async function loadExportData(
     yyyyMm: e.yyyyMm,
     branchName: e.branch.name,
     type: e.type,
-    detail:
+    customer: e.type === "INCOME" ? e.custName : null,
+    car: e.type === "INCOME" ? composeCar(e.carBrand, e.carModel, e.license) : null,
+    item:
       e.type === "INCOME"
-        ? [e.custName, e.soldProd || e.bookedProd, e.license].filter(Boolean).join(" · ") || "-"
-        : e.expenseDetail || "-",
+        ? e.soldProd || e.bookedProd || e.prodType || "—"
+        : e.expenseDetail || "—",
     amount: Number(e.amount),
     paymentType:
       e.paymentType === "CASH" ? "เงินสด" : e.paymentType === "TRANSFER" ? "เงินโอน" : null,
@@ -91,7 +114,7 @@ export async function loadExportData(
     scopeBits.push(`สาขา: ${user.branchName}`);
   }
   if (filters.yyyyMm) {
-    scopeBits.push(`เดือน: ${filters.yyyyMm}`);
+    scopeBits.push(`เดือน: ${formatThaiYyyyMm(filters.yyyyMm)}`);
   } else {
     scopeBits.push("ทุกเดือน");
   }

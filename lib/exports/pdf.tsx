@@ -35,35 +35,53 @@ const COLORS = {
   bg: "#F9FAFB",
 };
 
+// Landscape A4 = 842 × 595pt. With 28pt page padding either side, the table
+// has ~786pt of usable horizontal space — enough for 9 narrow-but-readable
+// columns including three separate columns for customer / car / item.
 const styles = StyleSheet.create({
   page: {
-    padding: 32,
-    fontSize: 9,
+    paddingHorizontal: 28,
+    paddingTop: 28,
+    paddingBottom: 28,
+    fontSize: 8,
     fontFamily: "Sarabun",
     color: COLORS.text,
   },
-  title: { fontSize: 16, fontWeight: 700, color: COLORS.primary },
-  subtitle: { fontSize: 10, color: COLORS.muted, marginTop: 2 },
-  meta: { fontSize: 8, color: COLORS.muted, marginTop: 2 },
-  headerSpacer: { borderBottom: `2px solid ${COLORS.primary}`, marginTop: 8, marginBottom: 8 },
+  title: { fontSize: 14, fontWeight: 700, color: COLORS.primary },
+  subtitle: { fontSize: 9, color: COLORS.muted, marginTop: 2 },
+  meta: { fontSize: 7, color: COLORS.muted, marginTop: 2 },
+  headerSpacer: { borderBottom: `2px solid ${COLORS.primary}`, marginTop: 6, marginBottom: 6 },
 
   table: { marginTop: 4 },
-  row: { flexDirection: "row", borderBottom: `1px solid ${COLORS.border}`, paddingVertical: 4 },
+  row: {
+    flexDirection: "row",
+    borderBottom: `1px solid ${COLORS.border}`,
+    paddingVertical: 3,
+  },
   headRow: {
     flexDirection: "row",
     backgroundColor: COLORS.bg,
     paddingVertical: 5,
-    paddingHorizontal: 0,
     fontWeight: 700,
+    fontSize: 8,
   },
-  cellDate: { width: 60, paddingHorizontal: 3 },
-  cellType: { width: 40, paddingHorizontal: 3 },
-  cellBranch: { width: 60, paddingHorizontal: 3 },
-  cellDetail: { flex: 1, paddingHorizontal: 3 },
-  cellWho: { width: 70, paddingHorizontal: 3 },
-  cellAmount: { width: 80, paddingHorizontal: 3, textAlign: "right" },
+  // Column widths (sum ~ 786pt available in landscape A4).
+  cellDate: { width: 62, paddingHorizontal: 4 },
+  cellType: { width: 42, paddingHorizontal: 4 },
+  cellBranch: { width: 75, paddingHorizontal: 4 }, // widened so ลำพูน / ลำปาง / เชียงใหม่ don't truncate
+  cellCustomer: { width: 100, paddingHorizontal: 4 },
+  cellCar: { width: 145, paddingHorizontal: 4 },
+  cellItem: { width: 145, paddingHorizontal: 4 },
+  cellPayment: { width: 75, paddingHorizontal: 4 },
+  cellWho: { width: 60, paddingHorizontal: 4 },
+  cellAmount: { width: 82, paddingHorizontal: 4, textAlign: "right" },
 
-  totals: { marginTop: 12, padding: 10, backgroundColor: COLORS.bg, borderRadius: 4 },
+  totals: {
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: COLORS.bg,
+    borderRadius: 4,
+  },
   totalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
   totalLabel: { color: COLORS.muted },
   totalAmountIncome: { fontWeight: 700, color: COLORS.income },
@@ -73,8 +91,8 @@ const styles = StyleSheet.create({
   footer: {
     position: "absolute",
     bottom: 16,
-    left: 32,
-    right: 32,
+    left: 28,
+    right: 28,
     fontSize: 7,
     color: COLORS.muted,
     textAlign: "center",
@@ -92,7 +110,7 @@ function fmtThaiDate(d: Date): string {
   return new Intl.DateTimeFormat("th-TH-u-ca-buddhist", {
     day: "2-digit",
     month: "short",
-    year: "numeric",
+    year: "2-digit",
   }).format(d);
 }
 
@@ -103,7 +121,7 @@ function ReportDocument({ data }: { data: ExportData }) {
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" orientation="landscape" style={styles.page}>
         <Text style={styles.title}>รายงาน{titleSuffix} Finnix Film</Text>
         <Text style={styles.subtitle}>{data.scopeLabel}</Text>
         <Text style={styles.meta}>วันที่ออกรายงาน: {generatedAt}</Text>
@@ -114,7 +132,10 @@ function ReportDocument({ data }: { data: ExportData }) {
             <Text style={styles.cellDate}>วันที่</Text>
             <Text style={styles.cellType}>ประเภท</Text>
             <Text style={styles.cellBranch}>สาขา</Text>
-            <Text style={styles.cellDetail}>รายละเอียด</Text>
+            <Text style={styles.cellCustomer}>ลูกค้า</Text>
+            <Text style={styles.cellCar}>รถ</Text>
+            <Text style={styles.cellItem}>รายการ</Text>
+            <Text style={styles.cellPayment}>ช่องทาง/แหล่งเงิน</Text>
             <Text style={styles.cellWho}>ผู้บันทึก</Text>
             <Text style={styles.cellAmount}>จำนวนเงิน (บาท)</Text>
           </View>
@@ -122,7 +143,12 @@ function ReportDocument({ data }: { data: ExportData }) {
           {data.rows.length === 0 ? (
             <View style={styles.row}>
               <Text
-                style={{ flex: 1, textAlign: "center", color: COLORS.muted, paddingVertical: 10 }}
+                style={{
+                  flex: 1,
+                  textAlign: "center",
+                  color: COLORS.muted,
+                  paddingVertical: 10,
+                }}
               >
                 ไม่มีรายการในช่วงที่เลือก
               </Text>
@@ -140,7 +166,12 @@ function ReportDocument({ data }: { data: ExportData }) {
                   {r.type === "INCOME" ? "รายรับ" : "รายจ่าย"}
                 </Text>
                 <Text style={styles.cellBranch}>{r.branchName}</Text>
-                <Text style={styles.cellDetail}>{r.detail}</Text>
+                <Text style={styles.cellCustomer}>{r.customer ?? "—"}</Text>
+                <Text style={styles.cellCar}>{r.car ?? "—"}</Text>
+                <Text style={styles.cellItem}>{r.item}</Text>
+                <Text style={styles.cellPayment}>
+                  {r.type === "INCOME" ? (r.paymentType ?? "—") : (r.expenseSource ?? "—")}
+                </Text>
                 <Text style={styles.cellWho}>{r.createdByName ?? "—"}</Text>
                 <Text
                   style={{
