@@ -1,0 +1,165 @@
+// Prisma schema for Finnix Film inout (income/expense) webapp.
+// Mirrors the data model implied by reference.html plus the multi-user
+// / audit / month-lock requirements discussed in the Gemini chat.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum EntryType {
+  INCOME
+  EXPENSE
+}
+
+enum PaymentType {
+  CASH      // เงินสด
+  TRANSFER  // เงินโอน
+}
+
+enum FileKind {
+  JOB_SHEET        // ใบงาน (income, attached to product section)
+  INCOME_PROOF     // หลักฐานการรับเงิน (income, attached to payment section)
+  EXPENSE_RECEIPT  // ใบเสร็จ (expense)
+}
+
+/// App user. id matches Supabase auth.users.id (UUID).
+model User {
+  id          String   @id @db.Uuid
+  email       String   @unique
+  displayName String
+  role        Role     @default(STAFF)
+  branchId    String?  @db.Uuid
+  branch      Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entriesCreated Entry[] @relation("EntryCreatedBy")
+  entriesUpdated Entry[] @relation("EntryUpdatedBy")
+  monthLocks     MonthLock[]
+
+  @@map("users")
+}
+
+model Branch {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users   User[]
+  entries Entry[]
+
+  @@map("branches")
+}
+
+model ExpenseSource {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries Entry[]
+
+  @@map("expense_sources")
+}
+
+/// Income or expense entry. Income-only fields live alongside expense-only
+/// fields and are nullable; the `type` discriminator says which set is in use.
+model Entry {
+  id       String    @id @default(uuid()) @db.Uuid
+  type     EntryType
+  branchId String    @db.Uuid
+  branch   Branch    @relation(fields: [branchId], references: [id])
+  date     DateTime  @db.Date
+  /// derived "YYYY-MM" of `date`, materialized for fast month filtering + lock lookup
+  yyyyMm   String    @db.Char(7)
+  amount   Decimal   @db.Decimal(12, 2)
+
+  // ---- Income-only ----
+  custName     String?
+  custTel      String?
+  bookedVia    String?
+  carBrand     String?
+  carModel     String?
+  license      String?
+  prodType     String?
+  bookedProd   String?
+  bookedPrice  Decimal? @db.Decimal(12, 2)
+  soldProd     String?
+  soldPrice    Decimal? @db.Decimal(12, 2)
+  prodDetail   String?
+  otherDetail  String?
+  paymentType  PaymentType?
+
+  // ---- Expense-only ----
+  expenseDetail   String?
+  expenseSourceId String?        @db.Uuid
+  expenseSource   ExpenseSource? @relation(fields: [expenseSourceId], references: [id], onDelete: SetNull)
+
+  // ---- Audit ----
+  createdById String?  @db.Uuid
+  createdBy   User?    @relation("EntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById String?  @db.Uuid
+  updatedBy   User?    @relation("EntryUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  files EntryFile[]
+
+  @@index([branchId, yyyyMm])
+  @@index([type, yyyyMm])
+  @@map("entries")
+}
+
+model EntryFile {
+  id           String   @id @default(uuid()) @db.Uuid
+  entryId      String   @db.Uuid
+  entry        Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  kind         FileKind
+  storagePath  String   // path within the Supabase Storage bucket
+  originalName String
+  mimeType     String?
+  sizeBytes    Int?
+  createdAt    DateTime @default(now())
+
+  @@index([entryId])
+  @@map("entry_files")
+}
+
+/// When a yyyyMm is present here, edits/deletes to entries in that month are
+/// rejected for everyone except ADMIN (and ADMIN must explicitly unlock first).
+model MonthLock {
+  yyyyMm     String   @id @db.Char(7)
+  lockedById String?  @db.Uuid
+  lockedBy   User?    @relation(fields: [lockedById], references: [id], onDelete: SetNull)
+  lockedAt   DateTime @default(now())
+  note       String?
+
+  @@map("month_locks")
+}
+
+/// Generic key/value config. Used for feature flags like
+/// `staff_can_edit_others_in_branch` so admins can toggle without redeploy.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
