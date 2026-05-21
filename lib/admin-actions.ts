@@ -229,12 +229,18 @@ export async function createUser(_prev: ActionResult, form: FormData): Promise<A
   return { ok: true };
 }
 
-/// Resend the Supabase invite email for an existing user. Useful when:
+/// Resend the Supabase invite (or password-recovery) email for an existing
+/// user. Used when:
 ///   - the user lost the original email
-///   - the original token expired (Supabase invite links are valid 24h)
-///   - the user accidentally clicked the link in a different browser/device
-/// Calling inviteUserByEmail again invalidates the previous token and
-/// generates a fresh one.
+///   - the original 24h token expired
+///   - the user clicked the link in a different browser/device
+///
+/// Implementation note: inviteUserByEmail only works for emails that don't
+/// yet exist in auth.users — Supabase refuses with "already registered" once
+/// the account has been created. For everyone else (including users who
+/// were invited but never accepted, and users who already use the system),
+/// we fall back to resetPasswordForEmail which sends a recovery link with
+/// the same flow (lands on /auth/callback → /auth/accept, set a password).
 export async function resendInvite(userId: string): Promise<ActionResult> {
   await requireAdmin();
 
@@ -248,12 +254,34 @@ export async function resendInvite(userId: string): Promise<ActionResult> {
   const origin = await siteOrigin();
   const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent("/auth/accept")}`;
 
-  const { error } = await admin.auth.admin.inviteUserByEmail(user.email, { redirectTo });
-  if (error) {
-    return { ok: false, error: `ส่งคำเชิญใหม่ไม่สำเร็จ: ${error.message}` };
+  // First try the invite path — it works for accounts that haven't been
+  // created in auth.users yet (shouldn't be our case since createUser made
+  // them, but kept here for safety in case of state drift).
+  const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(user.email, {
+    redirectTo,
+  });
+  if (!inviteErr) {
+    revalidatePath("/admin/users");
+    return { ok: true };
   }
-  revalidatePath("/admin/users");
-  return { ok: true };
+
+  // Already-registered → use the recovery flow. The recovery email points at
+  // the same /auth/callback → /auth/accept chain so the UX is identical.
+  if (
+    inviteErr.message.toLowerCase().includes("already") ||
+    inviteErr.message.toLowerCase().includes("registered")
+  ) {
+    const { error: resetErr } = await admin.auth.resetPasswordForEmail(user.email, {
+      redirectTo,
+    });
+    if (resetErr) {
+      return { ok: false, error: `ส่งคำเชิญใหม่ไม่สำเร็จ: ${resetErr.message}` };
+    }
+    revalidatePath("/admin/users");
+    return { ok: true };
+  }
+
+  return { ok: false, error: `ส่งคำเชิญใหม่ไม่สำเร็จ: ${inviteErr.message}` };
 }
 
 export async function updateUser(
