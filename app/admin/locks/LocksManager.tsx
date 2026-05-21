@@ -61,7 +61,6 @@ export function LocksManager({ locks }: { locks: LockRow[] }) {
               onValueChange={setSelectedMonth}
               yearsBack={3}
               yearsForward={0}
-              placeholder="เลือกเดือน"
             />
             {fieldErrors.yyyyMm && <p className="text-destructive text-xs">{fieldErrors.yyyyMm}</p>}
           </div>

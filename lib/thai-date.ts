@@ -51,23 +51,3 @@ export function formatThaiYyyyMm(yyyyMm: string, opts: { short?: boolean } = {})
   const monthName = (opts.short ? THAI_MONTH_SHORT : THAI_MONTH_FULL)[month - 1];
   return `${monthName} ${toBuddhistYear(year)}`;
 }
-
-/**
- * Build a descending list of "YYYY-MM" + Thai label options spanning a window
- * around the current month. Used by the ThaiMonthPicker dropdown.
- */
-export function listYyyyMmOptions({
-  yearsBack = 5,
-  yearsForward = 1,
-}: { yearsBack?: number; yearsForward?: number } = {}): { value: string; label: string }[] {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const out: { value: string; label: string }[] = [];
-  for (let y = currentYear + yearsForward; y >= currentYear - yearsBack; y--) {
-    for (let m = 12; m >= 1; m--) {
-      const value = `${y}-${String(m).padStart(2, "0")}`;
-      out.push({ value, label: formatThaiYyyyMm(value) });
-    }
-  }
-  return out;
-}
