@@ -31,20 +31,29 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  // /login + /auth/* (invite callback, accept-invite page) are reachable
-  // without a session; they're the on-ramp to getting one.
-  const isAuthPage = path === "/login" || path.startsWith("/auth/");
+
+  // Routes reachable without a session:
+  //   /login       — sign-in page
+  //   /auth/*      — invite/recovery callback + accept-invite page; these
+  //                  must be reachable both before AND after the session
+  //                  cookie lands (the invite flow toggles between states
+  //                  mid-flight, and bouncing them around mid-flight breaks
+  //                  the set-password form).
+  const isPublicPath = path === "/login" || path.startsWith("/auth/");
   const isPublicAsset =
     path.startsWith("/_next") || path.startsWith("/favicon") || path === "/api/health";
 
-  if (!user && !isAuthPage && !isPublicAsset) {
+  if (!user && !isPublicPath && !isPublicAsset) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", path);
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  // Only auto-bounce authenticated users away from /login — never from /auth/*,
+  // because /auth/accept is *meant* to be visited while authenticated (to set
+  // an initial password after clicking an invite link).
+  if (user && path === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";
