@@ -66,15 +66,21 @@ const styles = StyleSheet.create({
     fontSize: 8,
   },
   // Column widths (sum ~ 786pt available in landscape A4).
-  cellDate: { width: 62, paddingHorizontal: 4 },
+  //
+  // Thai text in pdfkit/react-pdf doesn't break at character boundaries —
+  // strings either fit on one line or get clipped. Branch column needs to
+  // be generous enough that no realistic Thai branch name ever overflows
+  // (longest in seed: เชียงใหม่ = 6 chars; future-proofed for ~12-char
+  // names like นครศรีธรรมราช).
+  cellDate: { width: 70, paddingHorizontal: 4 },
   cellType: { width: 42, paddingHorizontal: 4 },
-  cellBranch: { width: 75, paddingHorizontal: 4 }, // widened so ลำพูน / ลำปาง / เชียงใหม่ don't truncate
-  cellCustomer: { width: 100, paddingHorizontal: 4 },
-  cellCar: { width: 145, paddingHorizontal: 4 },
-  cellItem: { width: 145, paddingHorizontal: 4 },
-  cellPayment: { width: 75, paddingHorizontal: 4 },
-  cellWho: { width: 60, paddingHorizontal: 4 },
-  cellAmount: { width: 82, paddingHorizontal: 4, textAlign: "right" },
+  cellBranch: { width: 115, paddingHorizontal: 4 },
+  cellCustomer: { width: 88, paddingHorizontal: 4 },
+  cellCar: { width: 128, paddingHorizontal: 4 },
+  cellItem: { width: 128, paddingHorizontal: 4 },
+  cellPayment: { width: 72, paddingHorizontal: 4 },
+  cellWho: { width: 56, paddingHorizontal: 4 },
+  cellAmount: { width: 87, paddingHorizontal: 4, textAlign: "right" },
 
   totals: {
     marginTop: 12,
@@ -110,7 +116,7 @@ function fmtThaiDate(d: Date): string {
   return new Intl.DateTimeFormat("th-TH-u-ca-buddhist", {
     day: "2-digit",
     month: "short",
-    year: "2-digit",
+    year: "numeric",
   }).format(d);
 }
 
