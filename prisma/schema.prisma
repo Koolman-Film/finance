@@ -90,6 +90,83 @@ model PaymentMethod {
   @@map("payment_methods")
 }
 
+/// Admin-managed list of booking channels (จองผ่าน) — e.g. "LINE", "Facebook",
+/// "Walk-in". Used on INCOME entries to track how the customer found us.
+model BookingChannel {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries Entry[]
+
+  @@map("booking_channels")
+}
+
+/// Admin-managed list of car brands (ยี่ห้อรถ) — e.g. "Toyota", "Honda".
+model CarBrand {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries Entry[]
+
+  @@map("car_brands")
+}
+
+/// Admin-managed list of car model + color variants (รุ่นรถ/สีรถ) — e.g.
+/// "Camry 2.5G สีดำ". Kept independent of CarBrand for v1 simplicity (no
+/// brand→model hierarchy); the shop can add entries as they encounter them.
+model CarModel {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries Entry[]
+
+  @@map("car_models")
+}
+
+/// Admin-managed list of product categories (ชนิดสินค้า) — e.g.
+/// "ฟิล์มกรองแสง", "ฟิล์มกันรอย PPF", "เคลือบแก้ว".
+model ProductType {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries Entry[]
+
+  @@map("product_types")
+}
+
+/// Admin-managed product catalog (สินค้าที่จอง / สินค้าที่ขาย) — e.g.
+/// "3M Crystalline 70% รอบคัน". Shared between the booked-product and
+/// sold-product fields so the shop maintains a single SKU list.
+model Product {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookedEntries Entry[] @relation("BookedProduct")
+  soldEntries   Entry[] @relation("SoldProduct")
+
+  @@map("products")
+}
+
 /// Income or expense entry. Income-only fields live alongside expense-only
 /// fields and are nullable; the `type` discriminator says which set is in use.
 model Entry {
@@ -105,19 +182,28 @@ model Entry {
   // ---- Income-only ----
   custName     String?
   custTel      String?
-  bookedVia    String?
-  carBrand     String?
-  carModel     String?
   license      String?
-  prodType     String?
-  bookedProd   String?
   bookedPrice  Decimal? @db.Decimal(12, 2)
-  soldProd     String?
   soldPrice    Decimal? @db.Decimal(12, 2)
   prodDetail   String?
   otherDetail  String?
-  paymentMethodId String?       @db.Uuid
-  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  // 6 admin-managed dropdown FKs (formerly free-text columns: bookedVia,
+  // carBrand, carModel, prodType, bookedProd, soldProd). Each is nullable +
+  // SetNull on delete so admins can deactivate/rename without breaking rows.
+  bookingChannelId String?         @db.Uuid
+  bookingChannel   BookingChannel? @relation(fields: [bookingChannelId], references: [id], onDelete: SetNull)
+  carBrandId       String?         @db.Uuid
+  carBrand         CarBrand?       @relation(fields: [carBrandId], references: [id], onDelete: SetNull)
+  carModelId       String?         @db.Uuid
+  carModel         CarModel?       @relation(fields: [carModelId], references: [id], onDelete: SetNull)
+  productTypeId    String?         @db.Uuid
+  productType      ProductType?    @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
+  bookedProductId  String?         @db.Uuid
+  bookedProduct    Product?        @relation("BookedProduct", fields: [bookedProductId], references: [id], onDelete: SetNull)
+  soldProductId    String?         @db.Uuid
+  soldProduct      Product?        @relation("SoldProduct", fields: [soldProductId], references: [id], onDelete: SetNull)
+  paymentMethodId  String?         @db.Uuid
+  paymentMethod    PaymentMethod?  @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
 
   // ---- Expense-only ----
   expenseDetail   String?

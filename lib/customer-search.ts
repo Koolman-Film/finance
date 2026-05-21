@@ -4,13 +4,19 @@ import { requireUser } from "@/lib/auth";
 import { entryBranchScope } from "@/lib/branch-scope";
 import { prisma } from "@/lib/prisma";
 
+/// Returned to the customer-search dialog. The 3 taxonomy fields carry both
+/// the FK id (for pre-filling the dropdown) and the display name (so the
+/// dialog can show "Toyota / Camry 2.5G สีดำ" without a second lookup).
 export type CustomerHit = {
   custName: string | null;
   custTel: string | null;
-  bookedVia: string | null;
-  carBrand: string | null;
-  carModel: string | null;
   license: string | null;
+  bookingChannelId: string | null;
+  bookingChannelName: string | null;
+  carBrandId: string | null;
+  carBrandName: string | null;
+  carModelId: string | null;
+  carModelName: string | null;
   lastSeenAt: string; // ISO date string for serialization across the wire
 };
 
@@ -32,9 +38,10 @@ export async function searchCustomers(query: string): Promise<CustomerHit[]> {
           OR: [
             { custName: { contains: q, mode: "insensitive" } },
             { custTel: { contains: q, mode: "insensitive" } },
-            { carBrand: { contains: q, mode: "insensitive" } },
-            { carModel: { contains: q, mode: "insensitive" } },
             { license: { contains: q, mode: "insensitive" } },
+            // Traverse the new FK relations so "Toyota" / "Camry" still match.
+            { carBrand: { name: { contains: q, mode: "insensitive" } } },
+            { carModel: { name: { contains: q, mode: "insensitive" } } },
           ],
         },
         // Filter out totally-empty customer entries (no point suggesting them).
@@ -46,10 +53,13 @@ export async function searchCustomers(query: string): Promise<CustomerHit[]> {
     select: {
       custName: true,
       custTel: true,
-      bookedVia: true,
-      carBrand: true,
-      carModel: true,
       license: true,
+      bookingChannelId: true,
+      bookingChannel: { select: { name: true } },
+      carBrandId: true,
+      carBrand: { select: { name: true } },
+      carModelId: true,
+      carModel: { select: { name: true } },
       date: true,
     },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
@@ -65,10 +75,13 @@ export async function searchCustomers(query: string): Promise<CustomerHit[]> {
     hits.push({
       custName: e.custName,
       custTel: e.custTel,
-      bookedVia: e.bookedVia,
-      carBrand: e.carBrand,
-      carModel: e.carModel,
       license: e.license,
+      bookingChannelId: e.bookingChannelId,
+      bookingChannelName: e.bookingChannel?.name ?? null,
+      carBrandId: e.carBrandId,
+      carBrandName: e.carBrand?.name ?? null,
+      carModelId: e.carModelId,
+      carModelName: e.carModel?.name ?? null,
       lastSeenAt: e.date.toISOString(),
     });
     if (hits.length >= 20) break;

@@ -248,6 +248,27 @@ function jitter(base: number, pct: number): number {
   return Math.round(base * (1 + v));
 }
 
+/// Idempotent upsert for a name-keyed taxonomy table. Returns the row id.
+async function ensureTaxonomy(
+  table:
+    | typeof prisma.bookingChannel
+    | typeof prisma.carBrand
+    | typeof prisma.carModel
+    | typeof prisma.productType
+    | typeof prisma.product,
+  name: string,
+  sortOrder: number,
+): Promise<string> {
+  // @ts-expect-error — table.upsert is shared shape across all 5 taxonomy models.
+  const row = await table.upsert({
+    where: { name },
+    update: {},
+    create: { name, sortOrder },
+    select: { id: true },
+  });
+  return row.id;
+}
+
 async function main() {
   const reset = process.argv.includes("--reset");
 
@@ -274,6 +295,40 @@ async function main() {
     console.error('No admin user found. Run "npm run set-admin -- <email> ..." first.');
     process.exit(1);
   }
+
+  // Ensure the 5 admin-managed taxonomies have entries to assign to seed rows.
+  // After the dropdownize migration these tables were already backfilled from
+  // existing data; this block makes a clean local dev DB (or production) work
+  // out of the box without manual UI clicks.
+  const bookingChannelIds = await Promise.all(
+    BOOKED_VIA.map((name, i) => ensureTaxonomy(prisma.bookingChannel, name, i)),
+  );
+  const uniqueBrandNames = Array.from(new Set(CUSTOMERS.map((c) => c.brand)));
+  const carBrandIdByName = new Map(
+    await Promise.all(
+      uniqueBrandNames.map(
+        async (n, i) => [n, await ensureTaxonomy(prisma.carBrand, n, i)] as const,
+      ),
+    ),
+  );
+  const uniqueModelNames = Array.from(new Set(CUSTOMERS.map((c) => c.model)));
+  const carModelIdByName = new Map(
+    await Promise.all(
+      uniqueModelNames.map(
+        async (n, i) => [n, await ensureTaxonomy(prisma.carModel, n, i)] as const,
+      ),
+    ),
+  );
+  const productTypeIds = await Promise.all(
+    PROD_TYPES.map((name, i) => ensureTaxonomy(prisma.productType, name, i)),
+  );
+  const productIdByName = new Map(
+    await Promise.all(
+      FILM_PRODUCTS.map(
+        async (p, i) => [p.name, await ensureTaxonomy(prisma.product, p.name, i)] as const,
+      ),
+    ),
+  );
 
   if (reset) {
     const { count } = await prisma.entry.deleteMany({});
@@ -304,6 +359,7 @@ async function main() {
         // Booked price within ±5% of sold (sometimes upsell, sometimes discount)
         const bookedPrice = jitter(soldPrice, 0.05);
 
+        const productId = productIdByName.get(product.name)!;
         await prisma.entry.create({
           data: {
             type: "INCOME",
@@ -313,15 +369,15 @@ async function main() {
             amount: soldPrice,
             custName: customer.name,
             custTel: customer.tel,
-            bookedVia: pick(BOOKED_VIA),
-            carBrand: customer.brand,
-            carModel: customer.model,
             license: customer.license,
-            prodType: pick(PROD_TYPES),
-            bookedProd: product.name,
             bookedPrice,
-            soldProd: product.name,
             soldPrice,
+            bookingChannelId: pick(bookingChannelIds),
+            carBrandId: carBrandIdByName.get(customer.brand)!,
+            carModelId: carModelIdByName.get(customer.model)!,
+            productTypeId: pick(productTypeIds),
+            bookedProductId: productId,
+            soldProductId: productId,
             paymentMethodId: pick(paymentMethods).id,
             createdById: admin.id,
             updatedById: admin.id,

@@ -52,7 +52,11 @@ export function EntryTable({ type, entries, lockedMonths }: Props) {
             const locked = lockedMonths.has(e.yyyyMm);
             const summary =
               type === "INCOME"
-                ? e.custName || e.prodType || e.soldProd || "-"
+                ? e.custName ||
+                  e.productType?.name ||
+                  e.soldProduct?.name ||
+                  e.bookedProduct?.name ||
+                  "-"
                 : e.expenseDetail || "-";
             return (
               <tr key={e.id} className="hover:bg-muted/30 border-b text-sm">

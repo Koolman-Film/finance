@@ -125,7 +125,7 @@ export function CustomerSearchDialog({ open, onOpenChange, onSelect }: Props) {
                       )}
                     </div>
                     <div className="text-muted-foreground mt-0.5 pl-6 text-xs">
-                      {[h.carBrand, h.carModel].filter(Boolean).join(" · ") || "—"}
+                      {[h.carBrandName, h.carModelName].filter(Boolean).join(" · ") || "—"}
                       {h.license && <span> · ทะเบียน {h.license}</span>}
                     </div>
                     <div className="text-muted-foreground mt-0.5 pl-6 text-xs">

@@ -191,6 +191,265 @@ export async function togglePaymentMethodActive(
 }
 
 // ============================================================================
+// Booking Channels (จองผ่าน)
+// ============================================================================
+
+const bookingChannelNameSchema = z.object({
+  name: z.string().trim().min(1, "กรุณากรอกชื่อช่องทางการจอง").max(100),
+});
+
+export async function createBookingChannel(
+  _prev: ActionResult,
+  form: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = bookingChannelNameSchema.safeParse({ name: form.get("name") });
+  if (!parsed.success) {
+    return { ok: false, error: "ข้อมูลไม่ถูกต้อง", fieldErrors: fieldErrorsFromZod(parsed.error) };
+  }
+  try {
+    const max = await prisma.bookingChannel.aggregate({ _max: { sortOrder: true } });
+    await prisma.bookingChannel.create({
+      data: { name: parsed.data.name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+    });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีช่องทางการจองชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/booking-channels");
+  return { ok: true };
+}
+
+export async function renameBookingChannel(id: string, name: string): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = bookingChannelNameSchema.safeParse({ name });
+  if (!parsed.success) {
+    return { ok: false, error: "ชื่อช่องทางการจองไม่ถูกต้อง" };
+  }
+  try {
+    await prisma.bookingChannel.update({ where: { id }, data: { name: parsed.data.name } });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีช่องทางการจองชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/booking-channels");
+  return { ok: true };
+}
+
+export async function toggleBookingChannelActive(
+  id: string,
+  active: boolean,
+): Promise<ActionResult> {
+  await requireAdmin();
+  await prisma.bookingChannel.update({ where: { id }, data: { active } });
+  revalidatePath("/admin/booking-channels");
+  return { ok: true };
+}
+
+// ============================================================================
+// Car Brands (ยี่ห้อรถ)
+// ============================================================================
+
+const carBrandNameSchema = z.object({
+  name: z.string().trim().min(1, "กรุณากรอกยี่ห้อรถ").max(100),
+});
+
+export async function createCarBrand(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = carBrandNameSchema.safeParse({ name: form.get("name") });
+  if (!parsed.success) {
+    return { ok: false, error: "ข้อมูลไม่ถูกต้อง", fieldErrors: fieldErrorsFromZod(parsed.error) };
+  }
+  try {
+    const max = await prisma.carBrand.aggregate({ _max: { sortOrder: true } });
+    await prisma.carBrand.create({
+      data: { name: parsed.data.name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+    });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มียี่ห้อรถนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/car-brands");
+  return { ok: true };
+}
+
+export async function renameCarBrand(id: string, name: string): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = carBrandNameSchema.safeParse({ name });
+  if (!parsed.success) {
+    return { ok: false, error: "ยี่ห้อรถไม่ถูกต้อง" };
+  }
+  try {
+    await prisma.carBrand.update({ where: { id }, data: { name: parsed.data.name } });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มียี่ห้อรถนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/car-brands");
+  return { ok: true };
+}
+
+export async function toggleCarBrandActive(id: string, active: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  await prisma.carBrand.update({ where: { id }, data: { active } });
+  revalidatePath("/admin/car-brands");
+  return { ok: true };
+}
+
+// ============================================================================
+// Car Models (รุ่นรถ/สีรถ)
+// ============================================================================
+
+const carModelNameSchema = z.object({
+  name: z.string().trim().min(1, "กรุณากรอกรุ่นรถ/สีรถ").max(150),
+});
+
+export async function createCarModel(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = carModelNameSchema.safeParse({ name: form.get("name") });
+  if (!parsed.success) {
+    return { ok: false, error: "ข้อมูลไม่ถูกต้อง", fieldErrors: fieldErrorsFromZod(parsed.error) };
+  }
+  try {
+    const max = await prisma.carModel.aggregate({ _max: { sortOrder: true } });
+    await prisma.carModel.create({
+      data: { name: parsed.data.name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+    });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีรุ่นรถนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/car-models");
+  return { ok: true };
+}
+
+export async function renameCarModel(id: string, name: string): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = carModelNameSchema.safeParse({ name });
+  if (!parsed.success) {
+    return { ok: false, error: "รุ่นรถไม่ถูกต้อง" };
+  }
+  try {
+    await prisma.carModel.update({ where: { id }, data: { name: parsed.data.name } });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีรุ่นรถนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/car-models");
+  return { ok: true };
+}
+
+export async function toggleCarModelActive(id: string, active: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  await prisma.carModel.update({ where: { id }, data: { active } });
+  revalidatePath("/admin/car-models");
+  return { ok: true };
+}
+
+// ============================================================================
+// Product Types (ชนิดสินค้า)
+// ============================================================================
+
+const productTypeNameSchema = z.object({
+  name: z.string().trim().min(1, "กรุณากรอกชนิดสินค้า").max(100),
+});
+
+export async function createProductType(
+  _prev: ActionResult,
+  form: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = productTypeNameSchema.safeParse({ name: form.get("name") });
+  if (!parsed.success) {
+    return { ok: false, error: "ข้อมูลไม่ถูกต้อง", fieldErrors: fieldErrorsFromZod(parsed.error) };
+  }
+  try {
+    const max = await prisma.productType.aggregate({ _max: { sortOrder: true } });
+    await prisma.productType.create({
+      data: { name: parsed.data.name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+    });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีชนิดสินค้านี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/product-types");
+  return { ok: true };
+}
+
+export async function renameProductType(id: string, name: string): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = productTypeNameSchema.safeParse({ name });
+  if (!parsed.success) {
+    return { ok: false, error: "ชนิดสินค้าไม่ถูกต้อง" };
+  }
+  try {
+    await prisma.productType.update({ where: { id }, data: { name: parsed.data.name } });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีชนิดสินค้านี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/product-types");
+  return { ok: true };
+}
+
+export async function toggleProductTypeActive(id: string, active: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  await prisma.productType.update({ where: { id }, data: { active } });
+  revalidatePath("/admin/product-types");
+  return { ok: true };
+}
+
+// ============================================================================
+// Products (สินค้าที่จอง / สินค้าที่ขาย — shared catalog)
+// ============================================================================
+
+const productNameSchema = z.object({
+  name: z.string().trim().min(1, "กรุณากรอกชื่อสินค้า").max(200),
+});
+
+export async function createProduct(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = productNameSchema.safeParse({ name: form.get("name") });
+  if (!parsed.success) {
+    return { ok: false, error: "ข้อมูลไม่ถูกต้อง", fieldErrors: fieldErrorsFromZod(parsed.error) };
+  }
+  try {
+    const max = await prisma.product.aggregate({ _max: { sortOrder: true } });
+    await prisma.product.create({
+      data: { name: parsed.data.name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+    });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีสินค้าชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/products");
+  return { ok: true };
+}
+
+export async function renameProduct(id: string, name: string): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = productNameSchema.safeParse({ name });
+  if (!parsed.success) {
+    return { ok: false, error: "ชื่อสินค้าไม่ถูกต้อง" };
+  }
+  try {
+    await prisma.product.update({ where: { id }, data: { name: parsed.data.name } });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีสินค้าชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/products");
+  return { ok: true };
+}
+
+export async function toggleProductActive(id: string, active: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  await prisma.product.update({ where: { id }, data: { active } });
+  revalidatePath("/admin/products");
+  return { ok: true };
+}
+
+// ============================================================================
 // Users
 // ============================================================================
 

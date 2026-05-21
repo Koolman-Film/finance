@@ -19,12 +19,39 @@ export default async function IncomePage({
     AND: [entryBranchScope(user), filtersToWhere(filters), { type: "INCOME" as const }],
   };
 
-  const [entries, branches, expenseSources, paymentMethods, lockedMonths] = await Promise.all([
+  // Helper-shaped queries for the 5 admin-managed dropdown taxonomies. Each
+  // returns just {id, name}; the form lists active entries in display order.
+  const taxonomySelect = { id: true, name: true } as const;
+  const taxonomyOrder = [{ sortOrder: "asc" as const }, { name: "asc" as const }];
+  const activeTaxonomy = {
+    where: { active: true },
+    orderBy: taxonomyOrder,
+    select: taxonomySelect,
+  };
+
+  const [
+    entries,
+    branches,
+    expenseSources,
+    paymentMethods,
+    bookingChannels,
+    carBrands,
+    carModels,
+    productTypes,
+    products,
+    lockedMonths,
+  ] = await Promise.all([
     prisma.entry.findMany({
       where,
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       include: {
         branch: { select: { name: true } },
+        bookingChannel: { select: { name: true } },
+        carBrand: { select: { name: true } },
+        carModel: { select: { name: true } },
+        productType: { select: { name: true } },
+        bookedProduct: { select: { name: true } },
+        soldProduct: { select: { name: true } },
         createdBy: { select: { displayName: true } },
         updatedBy: { select: { displayName: true } },
         files: {
@@ -33,21 +60,14 @@ export default async function IncomePage({
         },
       },
     }),
-    prisma.branch.findMany({
-      where: { active: true },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true },
-    }),
-    prisma.expenseSource.findMany({
-      where: { active: true },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true },
-    }),
-    prisma.paymentMethod.findMany({
-      where: { active: true },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true },
-    }),
+    prisma.branch.findMany(activeTaxonomy),
+    prisma.expenseSource.findMany(activeTaxonomy),
+    prisma.paymentMethod.findMany(activeTaxonomy),
+    prisma.bookingChannel.findMany(activeTaxonomy),
+    prisma.carBrand.findMany(activeTaxonomy),
+    prisma.carModel.findMany(activeTaxonomy),
+    prisma.productType.findMany(activeTaxonomy),
+    prisma.product.findMany(activeTaxonomy),
     prisma.monthLock.findMany({ select: { yyyyMm: true } }),
   ]);
 
@@ -58,6 +78,11 @@ export default async function IncomePage({
       branches={branches}
       expenseSources={expenseSources}
       paymentMethods={paymentMethods}
+      bookingChannels={bookingChannels}
+      carBrands={carBrands}
+      carModels={carModels}
+      productTypes={productTypes}
+      products={products}
       lockedMonths={lockedMonths.map((l) => l.yyyyMm)}
       currentUser={user}
       openAction={

@@ -80,6 +80,12 @@ export async function loadExportData(
       branch: { select: { name: true } },
       expenseSource: { select: { name: true } },
       paymentMethod: { select: { name: true } },
+      // Taxonomy relations (replaces the old free-text columns).
+      carBrand: { select: { name: true } },
+      carModel: { select: { name: true } },
+      productType: { select: { name: true } },
+      bookedProduct: { select: { name: true } },
+      soldProduct: { select: { name: true } },
       createdBy: { select: { displayName: true } },
     },
   });
@@ -90,10 +96,13 @@ export async function loadExportData(
     branchName: e.branch.name,
     type: e.type,
     customer: e.type === "INCOME" ? e.custName : null,
-    car: e.type === "INCOME" ? composeCar(e.carBrand, e.carModel, e.license) : null,
+    car:
+      e.type === "INCOME"
+        ? composeCar(e.carBrand?.name ?? null, e.carModel?.name ?? null, e.license)
+        : null,
     item:
       e.type === "INCOME"
-        ? e.soldProd || e.bookedProd || e.prodType || "—"
+        ? e.soldProduct?.name || e.bookedProduct?.name || e.productType?.name || "—"
         : e.expenseDetail || "—",
     amount: Number(e.amount),
     paymentMethod: e.paymentMethod?.name ?? null,

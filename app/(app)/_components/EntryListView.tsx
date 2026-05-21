@@ -10,12 +10,19 @@ import { EntryModal } from "./EntryModal";
 import { EntryTable } from "./EntryTable";
 import type { EntryWithRelations } from "./types";
 
+type TaxonomyOption = { id: string; name: string };
+
 type Props = {
   type: "INCOME" | "EXPENSE";
   entries: EntryWithRelations[];
-  branches: { id: string; name: string }[];
-  expenseSources: { id: string; name: string }[];
-  paymentMethods: { id: string; name: string }[];
+  branches: TaxonomyOption[];
+  expenseSources: TaxonomyOption[];
+  paymentMethods: TaxonomyOption[];
+  bookingChannels: TaxonomyOption[];
+  carBrands: TaxonomyOption[];
+  carModels: TaxonomyOption[];
+  productTypes: TaxonomyOption[];
+  products: TaxonomyOption[];
   lockedMonths: string[];
   currentUser: AppUser;
   openAction: string | null;
@@ -27,6 +34,11 @@ export function EntryListView({
   branches,
   expenseSources,
   paymentMethods,
+  bookingChannels,
+  carBrands,
+  carModels,
+  productTypes,
+  products,
   lockedMonths,
   currentUser,
   openAction,
@@ -77,6 +89,11 @@ export function EntryListView({
         branches={branches}
         expenseSources={expenseSources}
         paymentMethods={paymentMethods}
+        bookingChannels={bookingChannels}
+        carBrands={carBrands}
+        carModels={carModels}
+        productTypes={productTypes}
+        products={products}
         lockedMonths={lockedMonths}
         currentUser={currentUser}
       />

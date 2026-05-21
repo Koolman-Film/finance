@@ -29,12 +29,19 @@ import type { EntryWithRelations } from "./types";
 // the consumer keeps its own initial-state constant.
 const IDLE: EntryActionState = { ok: false, idle: true };
 
+export type TaxonomyOption = { id: string; name: string };
+
 type Props = {
   type: "INCOME" | "EXPENSE";
   entry: EntryWithRelations | null;
-  branches: { id: string; name: string }[];
-  expenseSources: { id: string; name: string }[];
-  paymentMethods: { id: string; name: string }[];
+  branches: TaxonomyOption[];
+  expenseSources: TaxonomyOption[];
+  paymentMethods: TaxonomyOption[];
+  bookingChannels: TaxonomyOption[];
+  carBrands: TaxonomyOption[];
+  carModels: TaxonomyOption[];
+  productTypes: TaxonomyOption[];
+  products: TaxonomyOption[];
   lockedMonths: string[];
   currentUser: AppUser;
   onSuccess: () => void;
@@ -59,6 +66,11 @@ export function EntryForm({
   branches,
   expenseSources,
   paymentMethods,
+  bookingChannels,
+  carBrands,
+  carModels,
+  productTypes,
+  products,
   lockedMonths,
   currentUser,
   onSuccess,
@@ -82,13 +94,17 @@ export function EntryForm({
   );
 
   // Customer fields are controlled so the "search past customer" dialog can
-  // backfill all five at once on selection.
+  // backfill them at once on selection. Free-text fields remain strings;
+  // dropdown FKs are stored as `id | ""` ("" === no selection).
   const [custName, setCustName] = useState<string>(entry?.custName ?? "");
   const [custTel, setCustTel] = useState<string>(entry?.custTel ?? "");
-  const [bookedVia, setBookedVia] = useState<string>(entry?.bookedVia ?? "");
-  const [carBrand, setCarBrand] = useState<string>(entry?.carBrand ?? "");
-  const [carModel, setCarModel] = useState<string>(entry?.carModel ?? "");
   const [license, setLicense] = useState<string>(entry?.license ?? "");
+  const [bookingChannelId, setBookingChannelId] = useState<string>(entry?.bookingChannelId ?? "");
+  const [carBrandId, setCarBrandId] = useState<string>(entry?.carBrandId ?? "");
+  const [carModelId, setCarModelId] = useState<string>(entry?.carModelId ?? "");
+  const [productTypeId, setProductTypeId] = useState<string>(entry?.productTypeId ?? "");
+  const [bookedProductId, setBookedProductId] = useState<string>(entry?.bookedProductId ?? "");
+  const [soldProductId, setSoldProductId] = useState<string>(entry?.soldProductId ?? "");
 
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
 
@@ -192,6 +208,14 @@ export function EntryForm({
       <input type="hidden" name="branchId" value={branchId} />
       <input type="hidden" name="paymentMethodId" value={paymentMethodId} />
       <input type="hidden" name="expenseSourceId" value={expenseSourceId} />
+      {/* Dropdown FKs — controlled via the Select widgets below; the hidden
+          inputs are what actually goes into FormData on submit. */}
+      <input type="hidden" name="bookingChannelId" value={bookingChannelId} />
+      <input type="hidden" name="carBrandId" value={carBrandId} />
+      <input type="hidden" name="carModelId" value={carModelId} />
+      <input type="hidden" name="productTypeId" value={productTypeId} />
+      <input type="hidden" name="bookedProductId" value={bookedProductId} />
+      <input type="hidden" name="soldProductId" value={soldProductId} />
 
       <div className="bg-muted/40 grid grid-cols-1 gap-4 rounded-lg p-4 md:grid-cols-2">
         <div className="space-y-1.5">
@@ -262,18 +286,26 @@ export function EntryForm({
                 onChange={setCustTel}
                 error={fieldErrors.custTel}
               />
-              <FormField
+              <TaxonomySelect
                 label="จองผ่าน"
-                name="bookedVia"
-                value={bookedVia}
-                onChange={setBookedVia}
+                value={bookingChannelId}
+                onValueChange={setBookingChannelId}
+                options={bookingChannels}
+                placeholder="เลือกช่องทางการจอง"
               />
-              <FormField label="ยี่ห้อรถ" name="carBrand" value={carBrand} onChange={setCarBrand} />
-              <FormField
+              <TaxonomySelect
+                label="ยี่ห้อรถ"
+                value={carBrandId}
+                onValueChange={setCarBrandId}
+                options={carBrands}
+                placeholder="เลือกยี่ห้อรถ"
+              />
+              <TaxonomySelect
                 label="รุ่นรถ/สีรถ"
-                name="carModel"
-                value={carModel}
-                onChange={setCarModel}
+                value={carModelId}
+                onValueChange={setCarModelId}
+                options={carModels}
+                placeholder="เลือกรุ่น/สี"
               />
               <FormField label="ทะเบียนรถ" name="license" value={license} onChange={setLicense} />
             </div>
@@ -285,20 +317,28 @@ export function EntryForm({
             onSelect={(hit) => {
               setCustName(hit.custName ?? "");
               setCustTel(hit.custTel ?? "");
-              setBookedVia(hit.bookedVia ?? "");
-              setCarBrand(hit.carBrand ?? "");
-              setCarModel(hit.carModel ?? "");
               setLicense(hit.license ?? "");
+              setBookingChannelId(hit.bookingChannelId ?? "");
+              setCarBrandId(hit.carBrandId ?? "");
+              setCarModelId(hit.carModelId ?? "");
             }}
           />
 
           <Section title="2. ข้อมูลสินค้า" toneClass="bg-emerald-50/80 border-emerald-100">
-            <FormField label="ชนิดสินค้า" name="prodType" defaultValue={entry?.prodType ?? ""} />
+            <TaxonomySelect
+              label="ชนิดสินค้า"
+              value={productTypeId}
+              onValueChange={setProductTypeId}
+              options={productTypes}
+              placeholder="เลือกชนิดสินค้า"
+            />
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <FormField
+              <TaxonomySelect
                 label="สินค้าที่จอง"
-                name="bookedProd"
-                defaultValue={entry?.bookedProd ?? ""}
+                value={bookedProductId}
+                onValueChange={setBookedProductId}
+                options={products}
+                placeholder="เลือกสินค้า"
               />
               <FormField
                 label="ราคาที่จอง"
@@ -310,10 +350,12 @@ export function EntryForm({
               />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <FormField
+              <TaxonomySelect
                 label="สินค้าที่ขาย"
-                name="soldProd"
-                defaultValue={entry?.soldProd ?? ""}
+                value={soldProductId}
+                onValueChange={setSoldProductId}
+                options={products}
+                placeholder="เลือกสินค้า"
               />
               <FormField
                 label="ราคาที่ขาย"
@@ -516,6 +558,50 @@ function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+/// Label + shadcn Select for an admin-managed taxonomy field (จองผ่าน,
+/// ยี่ห้อรถ, รุ่นรถ, ชนิดสินค้า, สินค้า). The form actually submits via the
+/// matching hidden input at the top of the form — this widget just drives the
+/// controlled state. An "—" first option lets the user clear the selection.
+function TaxonomySelect({
+  label,
+  value,
+  onValueChange,
+  options,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onValueChange: (v: string) => void;
+  options: TaxonomyOption[];
+  placeholder?: string;
+}) {
+  // Radix Select treats "" as the cleared state; we map our "no selection"
+  // sentinel ("") into a non-empty SelectItem value so the dropdown renders
+  // it as a clickable choice.
+  const CLEAR_VALUE = "__none__";
+  return (
+    <div className="space-y-1">
+      <Label className="text-muted-foreground text-xs">{label}</Label>
+      <Select
+        value={value === "" ? CLEAR_VALUE : value}
+        onValueChange={(v) => onValueChange(v === CLEAR_VALUE ? "" : v)}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={CLEAR_VALUE}>—</SelectItem>
+          {options.map((o) => (
+            <SelectItem key={o.id} value={o.id}>
+              {o.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 

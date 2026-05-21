@@ -43,28 +43,33 @@ const baseSchema = z.object({
   amount: decimalString,
 });
 
+// Helper for optional UUID FK fields: accepts a real UUID, an empty string
+// (no selection), or missing — all map to null.
+const optionalUuid = uuid.nullable().or(z.literal("").transform(() => null));
+
 const incomeSchema = baseSchema.extend({
   type: z.literal("INCOME"),
   custName: optionalTrim,
   custTel: optionalTrim,
-  bookedVia: optionalTrim,
-  carBrand: optionalTrim,
-  carModel: optionalTrim,
   license: optionalTrim,
-  prodType: optionalTrim,
-  bookedProd: optionalTrim,
   bookedPrice: optionalDecimal,
-  soldProd: optionalTrim,
   soldPrice: optionalDecimal,
   prodDetail: optionalTrim,
   otherDetail: optionalTrim,
-  paymentMethodId: uuid.nullable().or(z.literal("").transform(() => null)),
+  // 6 admin-managed dropdown FKs (replaces former free-text columns).
+  bookingChannelId: optionalUuid,
+  carBrandId: optionalUuid,
+  carModelId: optionalUuid,
+  productTypeId: optionalUuid,
+  bookedProductId: optionalUuid,
+  soldProductId: optionalUuid,
+  paymentMethodId: optionalUuid,
 });
 
 const expenseSchema = baseSchema.extend({
   type: z.literal("EXPENSE"),
   expenseDetail: optionalTrim,
-  expenseSourceId: uuid.nullable().or(z.literal("").transform(() => null)),
+  expenseSourceId: optionalUuid,
 });
 
 const entrySchema = z.discriminatedUnion("type", [incomeSchema, expenseSchema]);
@@ -126,17 +131,17 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
       ? {
           custName: data.custName,
           custTel: data.custTel,
-          bookedVia: data.bookedVia,
-          carBrand: data.carBrand,
-          carModel: data.carModel,
           license: data.license,
-          prodType: data.prodType,
-          bookedProd: data.bookedProd,
           bookedPrice: data.bookedPrice,
-          soldProd: data.soldProd,
           soldPrice: data.soldPrice,
           prodDetail: data.prodDetail,
           otherDetail: data.otherDetail,
+          bookingChannelId: data.bookingChannelId,
+          carBrandId: data.carBrandId,
+          carModelId: data.carModelId,
+          productTypeId: data.productTypeId,
+          bookedProductId: data.bookedProductId,
+          soldProductId: data.soldProductId,
           paymentMethodId: data.paymentMethodId,
           expenseDetail: null,
           expenseSourceId: null,
@@ -144,17 +149,17 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
       : {
           custName: null,
           custTel: null,
-          bookedVia: null,
-          carBrand: null,
-          carModel: null,
           license: null,
-          prodType: null,
-          bookedProd: null,
           bookedPrice: null,
-          soldProd: null,
           soldPrice: null,
           prodDetail: null,
           otherDetail: null,
+          bookingChannelId: null,
+          carBrandId: null,
+          carModelId: null,
+          productTypeId: null,
+          bookedProductId: null,
+          soldProductId: null,
           paymentMethodId: null,
           expenseDetail: data.expenseDetail,
           expenseSourceId: data.expenseSourceId,

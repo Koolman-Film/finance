@@ -12,14 +12,21 @@ import type { AppUser } from "@/lib/auth";
 import { EntryForm } from "./EntryForm";
 import type { EntryWithRelations } from "./types";
 
+type TaxonomyOption = { id: string; name: string };
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   type: "INCOME" | "EXPENSE";
   entry: EntryWithRelations | null;
-  branches: { id: string; name: string }[];
-  expenseSources: { id: string; name: string }[];
-  paymentMethods: { id: string; name: string }[];
+  branches: TaxonomyOption[];
+  expenseSources: TaxonomyOption[];
+  paymentMethods: TaxonomyOption[];
+  bookingChannels: TaxonomyOption[];
+  carBrands: TaxonomyOption[];
+  carModels: TaxonomyOption[];
+  productTypes: TaxonomyOption[];
+  products: TaxonomyOption[];
   lockedMonths: string[];
   currentUser: AppUser;
 };
@@ -32,6 +39,11 @@ export function EntryModal({
   branches,
   expenseSources,
   paymentMethods,
+  bookingChannels,
+  carBrands,
+  carModels,
+  productTypes,
+  products,
   lockedMonths,
   currentUser,
 }: Props) {
@@ -55,6 +67,11 @@ export function EntryModal({
           branches={branches}
           expenseSources={expenseSources}
           paymentMethods={paymentMethods}
+          bookingChannels={bookingChannels}
+          carBrands={carBrands}
+          carModels={carModels}
+          productTypes={productTypes}
+          products={products}
           lockedMonths={lockedMonths}
           currentUser={currentUser}
           onSuccess={() => onOpenChange(false)}

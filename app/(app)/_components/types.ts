@@ -12,12 +12,22 @@ export type EntryFileLite = {
 /// boundary (Next.js serializer rejects non-plain objects), so we substitute
 /// `number` for `amount`, `bookedPrice`, and `soldPrice`. Pages call
 /// `toClientEntry` below before passing rows to client components.
+///
+/// The taxonomy relations (bookingChannel/carBrand/...) are pulled in by the
+/// page-level Prisma queries so the table can display the display-name without
+/// a follow-up lookup.
 export type EntryWithRelations = Omit<Entry, "amount" | "bookedPrice" | "soldPrice"> & {
   amount: number;
   bookedPrice: number | null;
   soldPrice: number | null;
   branch: { name: string };
   expenseSource?: { name: string } | null;
+  bookingChannel?: { name: string } | null;
+  carBrand?: { name: string } | null;
+  carModel?: { name: string } | null;
+  productType?: { name: string } | null;
+  bookedProduct?: { name: string } | null;
+  soldProduct?: { name: string } | null;
   createdBy?: { displayName: string } | null;
   updatedBy?: { displayName: string } | null;
   files?: EntryFileLite[];
