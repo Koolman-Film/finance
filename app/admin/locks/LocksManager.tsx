@@ -3,10 +3,12 @@
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { AlertCircle, Loader2, Lock, Unlock } from "lucide-react";
 
+import { ThaiMonthPicker } from "@/components/ThaiMonthPicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { lockMonth, unlockMonth, type ActionResult } from "@/lib/admin-actions";
+import { formatThaiYyyyMm } from "@/lib/thai-date";
 
 const IDLE: ActionResult = { ok: false, error: "" };
 
@@ -20,11 +22,17 @@ type LockRow = {
 export function LocksManager({ locks }: { locks: LockRow[] }) {
   const [state, formAction, pending] = useActionState(lockMonth, IDLE);
   const [formKey, setFormKey] = useState(0);
+  // The ThaiMonthPicker is controlled — we own its value here so we can clear
+  // it on success, and so the hidden `yyyyMm` input gets the right form data.
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
 
   useEffect(() => {
-    if (state && "ok" in state && state.ok)
+    if (state && "ok" in state && state.ok) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormKey((k) => k + 1);
+
+      setSelectedMonth("");
+    }
   }, [state]);
 
   const fieldErrors: Record<string, string> =
@@ -44,9 +52,17 @@ export function LocksManager({ locks }: { locks: LockRow[] }) {
           action={formAction}
           className="bg-muted/30 grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_2fr_auto] md:items-end"
         >
+          <input type="hidden" name="yyyyMm" value={selectedMonth} />
           <div className="space-y-1.5">
             <Label htmlFor="lock-month">เดือนที่จะล็อค</Label>
-            <Input id="lock-month" name="yyyyMm" type="month" required />
+            <ThaiMonthPicker
+              id="lock-month"
+              value={selectedMonth}
+              onValueChange={setSelectedMonth}
+              yearsBack={3}
+              yearsForward={0}
+              placeholder="เลือกเดือน"
+            />
             {fieldErrors.yyyyMm && <p className="text-destructive text-xs">{fieldErrors.yyyyMm}</p>}
           </div>
           <div className="space-y-1.5">
@@ -58,7 +74,7 @@ export function LocksManager({ locks }: { locks: LockRow[] }) {
               placeholder="เช่น ปิดงบเดือนนี้แล้ว"
             />
           </div>
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending || !selectedMonth}>
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
             ล็อค
           </Button>
@@ -103,7 +119,10 @@ function LockRowView({ lock }: { lock: LockRow }) {
     <li className="flex items-center gap-4 p-3 text-sm">
       <Lock className="text-muted-foreground size-4 shrink-0" />
       <div className="flex-1">
-        <p className="font-mono font-semibold">{lock.yyyyMm}</p>
+        <p className="font-semibold">
+          {formatThaiYyyyMm(lock.yyyyMm)}{" "}
+          <span className="text-muted-foreground ml-1 font-mono text-xs">({lock.yyyyMm})</span>
+        </p>
         {lock.note && <p className="text-muted-foreground text-xs">{lock.note}</p>}
         <p className="text-muted-foreground mt-0.5 text-xs">
           ล็อคโดย {lock.lockedByName ?? "—"} ·{" "}

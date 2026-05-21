@@ -4,8 +4,8 @@ import { useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileSpreadsheet, FileText } from "lucide-react";
 
+import { ThaiMonthPicker } from "@/components/ThaiMonthPicker";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -64,11 +64,11 @@ export function FilterBar({ branches, canSelectAllBranches }: Props) {
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="month-filter">เดือน</Label>
-        <Input
+        <ThaiMonthPicker
           id="month-filter"
-          type="month"
           value={monthValue}
-          onChange={(e) => update("month", e.target.value)}
+          onValueChange={(v) => update("month", v)}
+          allowEmpty
         />
       </div>
       <div className="flex gap-2 md:col-span-2">
