@@ -39,7 +39,6 @@ type Props = {
   paymentMethods: TaxonomyOption[];
   bookingChannels: TaxonomyOption[];
   carBrands: TaxonomyOption[];
-  carModels: TaxonomyOption[];
   productTypes: TaxonomyOption[];
   products: TaxonomyOption[];
   lockedMonths: string[];
@@ -68,7 +67,6 @@ export function EntryForm({
   paymentMethods,
   bookingChannels,
   carBrands,
-  carModels,
   productTypes,
   products,
   lockedMonths,
@@ -101,7 +99,7 @@ export function EntryForm({
   const [license, setLicense] = useState<string>(entry?.license ?? "");
   const [bookingChannelId, setBookingChannelId] = useState<string>(entry?.bookingChannelId ?? "");
   const [carBrandId, setCarBrandId] = useState<string>(entry?.carBrandId ?? "");
-  const [carModelId, setCarModelId] = useState<string>(entry?.carModelId ?? "");
+  const [carModel, setCarModel] = useState<string>(entry?.carModel ?? "");
   const [productTypeId, setProductTypeId] = useState<string>(entry?.productTypeId ?? "");
   const [bookedProductId, setBookedProductId] = useState<string>(entry?.bookedProductId ?? "");
   const [soldProductId, setSoldProductId] = useState<string>(entry?.soldProductId ?? "");
@@ -212,7 +210,6 @@ export function EntryForm({
           inputs are what actually goes into FormData on submit. */}
       <input type="hidden" name="bookingChannelId" value={bookingChannelId} />
       <input type="hidden" name="carBrandId" value={carBrandId} />
-      <input type="hidden" name="carModelId" value={carModelId} />
       <input type="hidden" name="productTypeId" value={productTypeId} />
       <input type="hidden" name="bookedProductId" value={bookedProductId} />
       <input type="hidden" name="soldProductId" value={soldProductId} />
@@ -300,12 +297,11 @@ export function EntryForm({
                 options={carBrands}
                 placeholder="เลือกยี่ห้อรถ"
               />
-              <TaxonomySelect
+              <FormField
                 label="รุ่นรถ/สีรถ"
-                value={carModelId}
-                onValueChange={setCarModelId}
-                options={carModels}
-                placeholder="เลือกรุ่น/สี"
+                name="carModel"
+                value={carModel}
+                onChange={setCarModel}
               />
               <FormField label="ทะเบียนรถ" name="license" value={license} onChange={setLicense} />
             </div>
@@ -320,7 +316,7 @@ export function EntryForm({
               setLicense(hit.license ?? "");
               setBookingChannelId(hit.bookingChannelId ?? "");
               setCarBrandId(hit.carBrandId ?? "");
-              setCarModelId(hit.carModelId ?? "");
+              setCarModel(hit.carModel ?? "");
             }}
           />
 

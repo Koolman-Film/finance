@@ -56,10 +56,11 @@ const incomeSchema = baseSchema.extend({
   soldPrice: optionalDecimal,
   prodDetail: optionalTrim,
   otherDetail: optionalTrim,
-  // 6 admin-managed dropdown FKs (replaces former free-text columns).
+  // 5 admin-managed dropdown FKs (replaces former free-text columns). carModel
+  // stayed free-text on its own.
   bookingChannelId: optionalUuid,
   carBrandId: optionalUuid,
-  carModelId: optionalUuid,
+  carModel: optionalTrim,
   productTypeId: optionalUuid,
   bookedProductId: optionalUuid,
   soldProductId: optionalUuid,
@@ -138,7 +139,7 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
           otherDetail: data.otherDetail,
           bookingChannelId: data.bookingChannelId,
           carBrandId: data.carBrandId,
-          carModelId: data.carModelId,
+          carModel: data.carModel,
           productTypeId: data.productTypeId,
           bookedProductId: data.bookedProductId,
           soldProductId: data.soldProductId,
@@ -156,7 +157,7 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
           otherDetail: null,
           bookingChannelId: null,
           carBrandId: null,
-          carModelId: null,
+          carModel: null,
           productTypeId: null,
           bookedProductId: null,
           soldProductId: null,

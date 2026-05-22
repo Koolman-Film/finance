@@ -19,7 +19,7 @@ export default async function IncomePage({
     AND: [entryBranchScope(user), filtersToWhere(filters), { type: "INCOME" as const }],
   };
 
-  // Helper-shaped queries for the 5 admin-managed dropdown taxonomies. Each
+  // Helper-shaped queries for the admin-managed dropdown taxonomies. Each
   // returns just {id, name}; the form lists active entries in display order.
   const taxonomySelect = { id: true, name: true } as const;
   const taxonomyOrder = [{ sortOrder: "asc" as const }, { name: "asc" as const }];
@@ -36,7 +36,6 @@ export default async function IncomePage({
     paymentMethods,
     bookingChannels,
     carBrands,
-    carModels,
     productTypes,
     products,
     lockedMonths,
@@ -48,7 +47,6 @@ export default async function IncomePage({
         branch: { select: { name: true } },
         bookingChannel: { select: { name: true } },
         carBrand: { select: { name: true } },
-        carModel: { select: { name: true } },
         productType: { select: { name: true } },
         bookedProduct: { select: { name: true } },
         soldProduct: { select: { name: true } },
@@ -65,7 +63,6 @@ export default async function IncomePage({
     prisma.paymentMethod.findMany(activeTaxonomy),
     prisma.bookingChannel.findMany(activeTaxonomy),
     prisma.carBrand.findMany(activeTaxonomy),
-    prisma.carModel.findMany(activeTaxonomy),
     prisma.productType.findMany(activeTaxonomy),
     prisma.product.findMany(activeTaxonomy),
     prisma.monthLock.findMany({ select: { yyyyMm: true } }),
@@ -80,7 +77,6 @@ export default async function IncomePage({
       paymentMethods={paymentMethods}
       bookingChannels={bookingChannels}
       carBrands={carBrands}
-      carModels={carModels}
       productTypes={productTypes}
       products={products}
       lockedMonths={lockedMonths.map((l) => l.yyyyMm)}

@@ -20,7 +20,6 @@ type Props = {
   paymentMethods: TaxonomyOption[];
   bookingChannels: TaxonomyOption[];
   carBrands: TaxonomyOption[];
-  carModels: TaxonomyOption[];
   productTypes: TaxonomyOption[];
   products: TaxonomyOption[];
   lockedMonths: string[];
@@ -36,7 +35,6 @@ export function EntryListView({
   paymentMethods,
   bookingChannels,
   carBrands,
-  carModels,
   productTypes,
   products,
   lockedMonths,
@@ -91,7 +89,6 @@ export function EntryListView({
         paymentMethods={paymentMethods}
         bookingChannels={bookingChannels}
         carBrands={carBrands}
-        carModels={carModels}
         productTypes={productTypes}
         products={products}
         lockedMonths={lockedMonths}

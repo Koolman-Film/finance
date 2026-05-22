@@ -38,7 +38,6 @@ export default async function ExpensePage({
     paymentMethods,
     bookingChannels,
     carBrands,
-    carModels,
     productTypes,
     products,
     lockedMonths,
@@ -62,7 +61,6 @@ export default async function ExpensePage({
     prisma.paymentMethod.findMany(activeTaxonomy),
     prisma.bookingChannel.findMany(activeTaxonomy),
     prisma.carBrand.findMany(activeTaxonomy),
-    prisma.carModel.findMany(activeTaxonomy),
     prisma.productType.findMany(activeTaxonomy),
     prisma.product.findMany(activeTaxonomy),
     prisma.monthLock.findMany({ select: { yyyyMm: true } }),
@@ -77,7 +75,6 @@ export default async function ExpensePage({
       paymentMethods={paymentMethods}
       bookingChannels={bookingChannels}
       carBrands={carBrands}
-      carModels={carModels}
       productTypes={productTypes}
       products={products}
       lockedMonths={lockedMonths.map((l) => l.yyyyMm)}

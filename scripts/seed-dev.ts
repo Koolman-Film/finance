@@ -253,7 +253,6 @@ async function ensureTaxonomy(
   table:
     | typeof prisma.bookingChannel
     | typeof prisma.carBrand
-    | typeof prisma.carModel
     | typeof prisma.productType
     | typeof prisma.product,
   name: string,
@@ -296,7 +295,7 @@ async function main() {
     process.exit(1);
   }
 
-  // Ensure the 5 admin-managed taxonomies have entries to assign to seed rows.
+  // Ensure the admin-managed taxonomies have entries to assign to seed rows.
   // After the dropdownize migration these tables were already backfilled from
   // existing data; this block makes a clean local dev DB (or production) work
   // out of the box without manual UI clicks.
@@ -308,14 +307,6 @@ async function main() {
     await Promise.all(
       uniqueBrandNames.map(
         async (n, i) => [n, await ensureTaxonomy(prisma.carBrand, n, i)] as const,
-      ),
-    ),
-  );
-  const uniqueModelNames = Array.from(new Set(CUSTOMERS.map((c) => c.model)));
-  const carModelIdByName = new Map(
-    await Promise.all(
-      uniqueModelNames.map(
-        async (n, i) => [n, await ensureTaxonomy(prisma.carModel, n, i)] as const,
       ),
     ),
   );
@@ -374,7 +365,7 @@ async function main() {
             soldPrice,
             bookingChannelId: pick(bookingChannelIds),
             carBrandId: carBrandIdByName.get(customer.brand)!,
-            carModelId: carModelIdByName.get(customer.model)!,
+            carModel: customer.model,
             productTypeId: pick(productTypeIds),
             bookedProductId: productId,
             soldProductId: productId,

@@ -119,22 +119,6 @@ model CarBrand {
   @@map("car_brands")
 }
 
-/// Admin-managed list of car model + color variants (รุ่นรถ/สีรถ) — e.g.
-/// "Camry 2.5G สีดำ". Kept independent of CarBrand for v1 simplicity (no
-/// brand→model hierarchy); the shop can add entries as they encounter them.
-model CarModel {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @unique
-  active    Boolean  @default(true)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  entries Entry[]
-
-  @@map("car_models")
-}
-
 /// Admin-managed list of product categories (ชนิดสินค้า) — e.g.
 /// "ฟิล์มกรองแสง", "ฟิล์มกันรอย PPF", "เคลือบแก้ว".
 model ProductType {
@@ -187,15 +171,16 @@ model Entry {
   soldPrice    Decimal? @db.Decimal(12, 2)
   prodDetail   String?
   otherDetail  String?
-  // 6 admin-managed dropdown FKs (formerly free-text columns: bookedVia,
-  // carBrand, carModel, prodType, bookedProd, soldProd). Each is nullable +
-  // SetNull on delete so admins can deactivate/rename without breaking rows.
+  // 5 admin-managed dropdown FKs (formerly free-text columns: bookedVia,
+  // carBrand, prodType, bookedProd, soldProd). Each is nullable + SetNull on
+  // delete so admins can deactivate/rename without breaking rows. carModel
+  // stayed as free text — admins didn't want to maintain a list of every
+  // model/color variant.
   bookingChannelId String?         @db.Uuid
   bookingChannel   BookingChannel? @relation(fields: [bookingChannelId], references: [id], onDelete: SetNull)
   carBrandId       String?         @db.Uuid
   carBrand         CarBrand?       @relation(fields: [carBrandId], references: [id], onDelete: SetNull)
-  carModelId       String?         @db.Uuid
-  carModel         CarModel?       @relation(fields: [carModelId], references: [id], onDelete: SetNull)
+  carModel         String?
   productTypeId    String?         @db.Uuid
   productType      ProductType?    @relation(fields: [productTypeId], references: [id], onDelete: SetNull)
   bookedProductId  String?         @db.Uuid

@@ -11,7 +11,6 @@ const TABS = [
   { href: "/admin/payment-methods", label: "ช่องทางการชำระเงิน" },
   { href: "/admin/booking-channels", label: "ช่องทางการจอง" },
   { href: "/admin/car-brands", label: "ยี่ห้อรถ" },
-  { href: "/admin/car-models", label: "รุ่นรถ/สีรถ" },
   { href: "/admin/product-types", label: "ชนิดสินค้า" },
   { href: "/admin/products", label: "สินค้า" },
   { href: "/admin/users", label: "ผู้ใช้งาน" },

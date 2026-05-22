@@ -297,56 +297,6 @@ export async function toggleCarBrandActive(id: string, active: boolean): Promise
 }
 
 // ============================================================================
-// Car Models (รุ่นรถ/สีรถ)
-// ============================================================================
-
-const carModelNameSchema = z.object({
-  name: z.string().trim().min(1, "กรุณากรอกรุ่นรถ/สีรถ").max(150),
-});
-
-export async function createCarModel(_prev: ActionResult, form: FormData): Promise<ActionResult> {
-  await requireAdmin();
-  const parsed = carModelNameSchema.safeParse({ name: form.get("name") });
-  if (!parsed.success) {
-    return { ok: false, error: "ข้อมูลไม่ถูกต้อง", fieldErrors: fieldErrorsFromZod(parsed.error) };
-  }
-  try {
-    const max = await prisma.carModel.aggregate({ _max: { sortOrder: true } });
-    await prisma.carModel.create({
-      data: { name: parsed.data.name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
-    });
-  } catch (err) {
-    if (uniqueViolation(err)) return { ok: false, error: "มีรุ่นรถนี้อยู่แล้ว" };
-    throw err;
-  }
-  revalidatePath("/admin/car-models");
-  return { ok: true };
-}
-
-export async function renameCarModel(id: string, name: string): Promise<ActionResult> {
-  await requireAdmin();
-  const parsed = carModelNameSchema.safeParse({ name });
-  if (!parsed.success) {
-    return { ok: false, error: "รุ่นรถไม่ถูกต้อง" };
-  }
-  try {
-    await prisma.carModel.update({ where: { id }, data: { name: parsed.data.name } });
-  } catch (err) {
-    if (uniqueViolation(err)) return { ok: false, error: "มีรุ่นรถนี้อยู่แล้ว" };
-    throw err;
-  }
-  revalidatePath("/admin/car-models");
-  return { ok: true };
-}
-
-export async function toggleCarModelActive(id: string, active: boolean): Promise<ActionResult> {
-  await requireAdmin();
-  await prisma.carModel.update({ where: { id }, data: { active } });
-  revalidatePath("/admin/car-models");
-  return { ok: true };
-}
-
-// ============================================================================
 // Product Types (ชนิดสินค้า)
 // ============================================================================
 

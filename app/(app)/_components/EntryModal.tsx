@@ -24,7 +24,6 @@ type Props = {
   paymentMethods: TaxonomyOption[];
   bookingChannels: TaxonomyOption[];
   carBrands: TaxonomyOption[];
-  carModels: TaxonomyOption[];
   productTypes: TaxonomyOption[];
   products: TaxonomyOption[];
   lockedMonths: string[];
@@ -41,7 +40,6 @@ export function EntryModal({
   paymentMethods,
   bookingChannels,
   carBrands,
-  carModels,
   productTypes,
   products,
   lockedMonths,
@@ -69,7 +67,6 @@ export function EntryModal({
           paymentMethods={paymentMethods}
           bookingChannels={bookingChannels}
           carBrands={carBrands}
-          carModels={carModels}
           productTypes={productTypes}
           products={products}
           lockedMonths={lockedMonths}

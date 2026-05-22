@@ -82,7 +82,6 @@ export async function loadExportData(
       paymentMethod: { select: { name: true } },
       // Taxonomy relations (replaces the old free-text columns).
       carBrand: { select: { name: true } },
-      carModel: { select: { name: true } },
       productType: { select: { name: true } },
       bookedProduct: { select: { name: true } },
       soldProduct: { select: { name: true } },
@@ -96,10 +95,7 @@ export async function loadExportData(
     branchName: e.branch.name,
     type: e.type,
     customer: e.type === "INCOME" ? e.custName : null,
-    car:
-      e.type === "INCOME"
-        ? composeCar(e.carBrand?.name ?? null, e.carModel?.name ?? null, e.license)
-        : null,
+    car: e.type === "INCOME" ? composeCar(e.carBrand?.name ?? null, e.carModel, e.license) : null,
     item:
       e.type === "INCOME"
         ? e.soldProduct?.name || e.bookedProduct?.name || e.productType?.name || "—"
