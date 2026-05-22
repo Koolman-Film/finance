@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 import { BranchComparisonChart, type BranchRow } from "./_components/BranchComparisonChart";
 import { MonthlyTrendChart, type MonthlyRow } from "./_components/MonthlyTrendChart";
+import { TopProductsCard, type TopProductRow } from "./_components/TopProductsCard";
 
 export default async function SummaryPage({
   searchParams,
@@ -34,28 +35,51 @@ export default async function SummaryPage({
   // Build the rolling 6-month window (current month back to 5 months prior).
   const months = lastNYyyyMm(6);
 
-  const [incomeAgg, expenseAgg, branchAgg, branchList, monthAgg] = await Promise.all([
-    prisma.entry.aggregate({ _sum: { amount: true }, where: { ...where, type: "INCOME" } }),
-    prisma.entry.aggregate({ _sum: { amount: true }, where: { ...where, type: "EXPENSE" } }),
-    // Branch comparison: aggregate by branch, ignoring the month filter so the
-    // bar chart shows the full picture even if the cards above are filtered.
-    prisma.entry.groupBy({
-      by: ["branchId", "type"],
-      where: wideWhere,
-      _sum: { amount: true },
-    }),
-    prisma.branch.findMany({
-      where: { active: true },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true },
-    }),
-    // Monthly trend: aggregate by yyyyMm × type for the last 6 months.
-    prisma.entry.groupBy({
-      by: ["yyyyMm", "type"],
-      where: { AND: [...wideWhere.AND, { yyyyMm: { in: months } }] },
-      _sum: { amount: true },
-    }),
-  ]);
+  const [incomeAgg, expenseAgg, branchAgg, branchList, monthAgg, topProductsAgg] =
+    await Promise.all([
+      prisma.entry.aggregate({ _sum: { amount: true }, where: { ...where, type: "INCOME" } }),
+      prisma.entry.aggregate({ _sum: { amount: true }, where: { ...where, type: "EXPENSE" } }),
+      // Branch comparison: aggregate by branch, ignoring the month filter so the
+      // bar chart shows the full picture even if the cards above are filtered.
+      prisma.entry.groupBy({
+        by: ["branchId", "type"],
+        where: wideWhere,
+        _sum: { amount: true },
+      }),
+      prisma.branch.findMany({
+        where: { active: true },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: { id: true, name: true },
+      }),
+      // Monthly trend: aggregate by yyyyMm × type for the last 6 months.
+      prisma.entry.groupBy({
+        by: ["yyyyMm", "type"],
+        where: { AND: [...wideWhere.AND, { yyyyMm: { in: months } }] },
+        _sum: { amount: true },
+      }),
+      // Top-selling products: respect the active filters (branch + month) so
+      // the ranking matches what the user is currently viewing.
+      prisma.entry.groupBy({
+        by: ["soldProductId"],
+        where: { ...where, type: "INCOME", soldProductId: { not: null } },
+        _count: { _all: true },
+        _sum: { amount: true },
+        orderBy: { _count: { soldProductId: "desc" } },
+        take: 10,
+      }),
+    ]);
+
+  // Resolve product names for the top-N list in a single follow-up query.
+  const topProductIds = topProductsAgg
+    .map((r) => r.soldProductId)
+    .filter((id): id is string => id != null);
+  const topProductRecords = topProductIds.length
+    ? await prisma.product.findMany({
+        where: { id: { in: topProductIds } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const productNameById = new Map(topProductRecords.map((p) => [p.id, p.name]));
 
   const income = Number(incomeAgg._sum.amount ?? 0);
   const expense = Number(expenseAgg._sum.amount ?? 0);
@@ -91,6 +115,14 @@ export default async function SummaryPage({
     };
   });
 
+  const topProductRows: TopProductRow[] = topProductsAgg
+    .map((r) => ({
+      productName: productNameById.get(r.soldProductId ?? "") ?? "—",
+      quantity: r._count._all,
+      revenue: Number(r._sum.amount ?? 0),
+    }))
+    .filter((r) => r.productName !== "—");
+
   // Show the cross-branch comparison only when there are 2+ branches in
   // scope — otherwise it's just a single pair of bars, redundant with the
   // monthly trend.
@@ -109,9 +141,16 @@ export default async function SummaryPage({
         <SummaryCard title="คงเหลือสุทธิ" amount={net} tone="neutral" icon={Wallet} />
       </div>
 
-      {showComparison && <BranchComparisonChart data={branchRows} />}
+      {showComparison ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+          <BranchComparisonChart data={branchRows} />
+          <MonthlyTrendChart data={monthlyRows} title={trendTitle} />
+        </div>
+      ) : (
+        <MonthlyTrendChart data={monthlyRows} title={trendTitle} />
+      )}
 
-      <MonthlyTrendChart data={monthlyRows} title={trendTitle} />
+      <TopProductsCard data={topProductRows} />
     </div>
   );
 }
