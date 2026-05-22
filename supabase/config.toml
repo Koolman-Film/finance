@@ -225,8 +225,12 @@ secure_password_change = false
 max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
-# Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# Number of seconds before the email OTP expires. Bumped to 24h so invite +
+# password-reset emails stay usable across timezones; users who click and walk
+# away from the set-password form get a full day to come back.
+# NB: production must mirror this in the Supabase Dashboard → Auth → Email →
+# "Email OTP Expiry". The dashboard value wins over this file in cloud.
+otp_expiry = 86400
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]

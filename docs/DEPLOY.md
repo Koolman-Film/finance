@@ -217,6 +217,24 @@ npm run prisma:deploy
 → Redirect URLs ใน Supabase Auth ยังไม่ครอบคลุม `https://finance.kool-man.com/**`
 → แก้ที่ Supabase Dashboard → Auth → URL Configuration
 
+### ลิงก์อีเมล (เชิญผู้ใช้ / รีเซ็ตรหัสผ่าน) ขึ้น ERR_TOO_MANY_REDIRECTS
+
+→ มักเกิดจาก **Site URL** หรือ **Redirect URLs** ใน Supabase ไม่ตรงกับ production
+→ แก้ที่ Supabase Dashboard → Authentication → URL Configuration:
+
+- **Site URL**: `https://finance.kool-man.com` (ไม่มี trailing slash ไม่มี path)
+- **Redirect URLs** (ใส่ทุกตัว):
+  - `https://finance.kool-man.com/auth/callback`
+  - `https://finance.kool-man.com/auth/callback?next=*`
+  - `https://finance.kool-man.com/**` (กันเหนียว)
+
+ห้ามใส่ apex `https://kool-man.com` เป็น Site URL — Vercel จะ redirect ไป `finance.` ทำให้ลิงก์อีเมลวนลูป
+
+### ลิงก์อีเมลหมดอายุเร็วเกินไป
+
+→ ค่าเริ่มต้นของ Supabase คือ 1 ชั่วโมง — โปรเจกต์นี้ตั้งให้เป็น 24 ชั่วโมงทั้ง local + production
+→ ถ้า production ยังเป็น 1 ชั่วโมง: Supabase Dashboard → Authentication → Email → **Email OTP Expiry** = `86400`
+
 ### `Error: connect ETIMEDOUT` ตอน prisma migrate
 
 → `DATABASE_URL` ผิด หรือ Supabase project ยังไม่พร้อม รอ 2-3 นาทีแล้วลองใหม่

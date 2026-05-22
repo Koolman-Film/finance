@@ -10,6 +10,7 @@ import {
   MailPlus,
   Pencil,
   ShieldAlert,
+  Trash2,
   UserPlus,
   X,
 } from "lucide-react";
@@ -31,7 +32,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createUser, resendInvite, updateUser, type ActionResult } from "@/lib/admin-actions";
+import {
+  createUser,
+  deleteUser,
+  resendInvite,
+  updateUser,
+  type ActionResult,
+} from "@/lib/admin-actions";
 
 const IDLE: ActionResult = { ok: false, error: "" };
 
@@ -51,10 +58,12 @@ export function UsersManager({
   users,
   branches,
   lastAdminId,
+  currentUserId,
 }: {
   users: User[];
   branches: Branch[];
   lastAdminId: string | null;
+  currentUserId: string;
 }) {
   const [addOpen, setAddOpen] = useState(false);
 
@@ -85,6 +94,7 @@ export function UsersManager({
               <th className="p-3 font-medium">บทบาท</th>
               <th className="p-3 font-medium">สาขา</th>
               <th className="p-3 font-medium">สถานะ</th>
+              <th className="p-3 font-medium"></th>
             </tr>
           </thead>
           <tbody>
@@ -94,6 +104,7 @@ export function UsersManager({
                 user={u}
                 branches={branches}
                 protectedLastAdmin={u.id === lastAdminId}
+                isSelf={u.id === currentUserId}
               />
             ))}
           </tbody>
@@ -109,16 +120,19 @@ function UserRow({
   user,
   branches,
   protectedLastAdmin,
+  isSelf,
 }: {
   user: User;
   branches: Branch[];
   protectedLastAdmin: boolean;
+  isSelf: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(user.displayName);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   function patch(p: {
     displayName?: string;
@@ -158,6 +172,21 @@ function UserRow({
       else setInfo(`ส่งคำเชิญใหม่ไปยัง ${user.email} แล้ว`);
     });
   }
+
+  function remove() {
+    setError(null);
+    setInfo(null);
+    startTransition(async () => {
+      const res = await deleteUser(user.id);
+      if (!res.ok) {
+        setError(res.error);
+        setConfirmDelete(false);
+      }
+      // On success the row disappears via revalidatePath, so no local state to reset.
+    });
+  }
+
+  const canDelete = !isSelf && !protectedLastAdmin;
 
   // When this row is the only active admin, lock role + active controls.
   // The server enforces the same rule; the disabled state prevents the
@@ -305,7 +334,89 @@ function UserRow({
           </p>
         )}
       </td>
+      <td className="p-3 text-right">
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => setConfirmDelete(true)}
+          disabled={pending || !canDelete}
+          title={
+            isSelf
+              ? "ลบบัญชีของตัวเองไม่ได้"
+              : protectedLastAdmin
+                ? "ผู้ดูแลระบบคนสุดท้าย ลบไม่ได้"
+                : "ลบบัญชี"
+          }
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive size-8 p-0 disabled:opacity-30"
+        >
+          <Trash2 className="size-4" />
+        </Button>
+        <DeleteUserDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          user={user}
+          onConfirm={remove}
+          pending={pending}
+        />
+      </td>
     </tr>
+  );
+}
+
+function DeleteUserDialog({
+  open,
+  onOpenChange,
+  user,
+  onConfirm,
+  pending,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  user: User;
+  onConfirm: () => void;
+  pending: boolean;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-destructive">ลบบัญชีผู้ใช้</DialogTitle>
+          <DialogDescription>
+            ลบบัญชี <span className="font-medium">{user.displayName}</span> ({user.email}) อย่างถาวร
+            — ผู้ใช้จะไม่สามารถเข้าสู่ระบบได้อีก
+          </DialogDescription>
+        </DialogHeader>
+        <div className="text-muted-foreground space-y-2 text-sm">
+          <p>
+            รายการรายรับ/รายจ่ายที่ผู้ใช้คนนี้บันทึกไว้ <strong>จะยังคงอยู่</strong> แต่ช่อง
+            &ldquo;ผู้บันทึก&rdquo; จะเป็นค่าว่าง
+          </p>
+          <p className="text-destructive">การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
+        </div>
+        <div className="flex gap-2 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1"
+            onClick={() => onOpenChange(false)}
+            disabled={pending}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            className="flex-1"
+            onClick={onConfirm}
+            disabled={pending}
+          >
+            {pending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            ลบถาวร
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

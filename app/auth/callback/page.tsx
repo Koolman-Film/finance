@@ -13,6 +13,13 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 ///   - #access_token=...&refresh_token=...  (implicit flow, legacy)
 /// We need a client page (not a server route) because the fragment never
 /// reaches the server — only the browser sees it.
+///
+/// Re-click resilience: a Supabase email link's underlying token is single-
+/// use. If the invitee clicks the email link a second time (e.g. they opened
+/// it once, walked away, then re-opened from their inbox) the second exchange
+/// fails. We tolerate that by checking whether a valid session is already
+/// present from the first click — if yes, we forward them to `next` instead
+/// of showing a scary error.
 export default function AuthCallbackPage() {
   return (
     <Suspense fallback={<CallbackShell />}>
@@ -30,19 +37,47 @@ function CallbackInner() {
       const supabase = createSupabaseBrowserClient();
       const next = search.get("next") ?? "/summary";
 
+      // --- Supabase-side errors first: when the verify endpoint rejects the
+      //     token (expired, malformed, wrong project) it tacks the reason onto
+      //     the redirect URL. Show it instead of silently bouncing.
+      const supabaseErr = search.get("error_description") ?? search.get("error");
+      const errorCode = search.get("error_code");
+      if (supabaseErr || errorCode) {
+        const expired =
+          errorCode === "otp_expired" ||
+          (supabaseErr ?? "").toLowerCase().includes("expired") ||
+          (supabaseErr ?? "").toLowerCase().includes("invalid");
+        setError(
+          expired
+            ? "ลิงก์หมดอายุหรือถูกใช้ไปแล้ว — กรุณาขอลิงก์ใหม่จากผู้ดูแลระบบ"
+            : (supabaseErr ?? "ลิงก์ไม่ถูกต้อง"),
+        );
+        return;
+      }
+
       // --- PKCE flow: ?code=... ---
       const code = search.get("code");
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          setError(error.message || "แลกเปลี่ยน code ไม่สำเร็จ");
+        if (!error) {
+          // Full reload so the server-rendered destination sees the new
+          // session cookie that Supabase just wrote. Using Next's router
+          // here was unreliable — the destination's RSC fetch sometimes
+          // raced the cookie write and bounced back to /login.
+          window.location.replace(next);
           return;
         }
-        // Full reload so the server-rendered destination sees the new
-        // session cookie that Supabase just wrote. Using Next's router
-        // here was unreliable — the destination's RSC fetch sometimes
-        // raced the cookie write and bounced back to /login.
-        window.location.replace(next);
+        // Code was likely already consumed by an earlier click. If a session
+        // is still cached on this device, forward anyway — the invitee just
+        // needs the password-set form, not another fresh token.
+        const { data: session } = await supabase.auth.getSession();
+        if (session.session) {
+          window.location.replace(next);
+          return;
+        }
+        setError(
+          "ลิงก์นี้ถูกใช้ไปแล้ว — หากคุณตั้งรหัสผ่านยังไม่เสร็จ กรุณาขอลิงก์ใหม่จากผู้ดูแลระบบ",
+        );
         return;
       }
 
@@ -62,6 +97,14 @@ function CallbackInner() {
           setError(error.message || "ตั้งค่า session ไม่สำเร็จ");
           return;
         }
+        window.location.replace(next);
+        return;
+      }
+
+      // Same re-entry fallback for naked /auth/callback hits (e.g. the user
+      // bookmarked it after the first successful exchange).
+      const { data: session } = await supabase.auth.getSession();
+      if (session.session) {
         window.location.replace(next);
         return;
       }

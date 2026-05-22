@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { UsersManager } from "./UsersManager";
 
 export default async function UsersPage() {
-  await requireAdmin();
+  const currentUser = await requireAdmin();
   const [users, branches] = await Promise.all([
     prisma.user.findMany({
       orderBy: [{ role: "asc" }, { displayName: "asc" }],
@@ -41,6 +41,7 @@ export default async function UsersPage() {
       }))}
       branches={branches}
       lastAdminId={lastAdminId}
+      currentUserId={currentUser.id}
     />
   );
 }

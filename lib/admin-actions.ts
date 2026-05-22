@@ -601,6 +601,62 @@ export async function updateUser(
   return { ok: true };
 }
 
+/// Hard-delete a user: removes the Supabase Auth row AND our `users` row.
+/// Entry audit references (createdById/updatedById) become null via the
+/// existing SetNull onDelete in the schema, so this does NOT touch entry data.
+///
+/// Guards:
+///   - self-delete is refused (admin can't remove their own login)
+///   - last active admin is refused (mirrors updateUser's last-admin guard)
+export async function deleteUser(id: string): Promise<ActionResult> {
+  const currentUser = await requireAdmin();
+  if (currentUser.id === id) {
+    return { ok: false, error: "ไม่สามารถลบบัญชีของตัวเองได้" };
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id },
+    select: { role: true, active: true, email: true },
+  });
+  if (!target) return { ok: false, error: "ไม่พบผู้ใช้" };
+
+  if (target.role === "ADMIN" && target.active) {
+    const otherActiveAdmins = await prisma.user.count({
+      where: { role: "ADMIN", active: true, id: { not: id } },
+    });
+    if (otherActiveAdmins === 0) {
+      return {
+        ok: false,
+        error: "ไม่สามารถลบผู้ดูแลระบบคนสุดท้ายได้ — กรุณาเพิ่มผู้ดูแลระบบคนอื่นก่อน",
+      };
+    }
+  }
+
+  const admin = supabaseAdmin();
+  // 1) Drop the Supabase Auth row first. If our Prisma delete then fails, we
+  //    leave behind an orphan users row pointing at a no-longer-existent
+  //    auth.users.id — but the user can't log in anyway, so the worst case is
+  //    a stale row the next admin retry can clean up.
+  const { error: authErr } = await admin.auth.admin.deleteUser(id);
+  if (authErr && !authErr.message.toLowerCase().includes("not found")) {
+    return { ok: false, error: `ลบบัญชี auth ไม่สำเร็จ: ${authErr.message}` };
+  }
+
+  // 2) Drop our row. Entry audit FKs (createdById/updatedById) are SetNull,
+  //    so entries are preserved with a null author.
+  try {
+    await prisma.user.delete({ where: { id } });
+  } catch (err) {
+    // Already gone is fine.
+    if (!(err instanceof Error && err.message.toLowerCase().includes("not found"))) {
+      throw err;
+    }
+  }
+
+  revalidatePath("/admin/users");
+  return { ok: true };
+}
+
 // ============================================================================
 // Month Locks
 // ============================================================================
