@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   Trash2,
   UserPlus,
+  UserX,
   X,
 } from "lucide-react";
 
@@ -33,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  cleanupAuthOrphans,
   createUser,
   deleteUser,
   resendInvite,
@@ -71,10 +73,13 @@ export function UsersManager({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">ผู้ใช้งานทั้งหมด ({users.length})</h2>
-        <Button onClick={() => setAddOpen(true)}>
-          <UserPlus className="size-4" />
-          เพิ่มผู้ใช้
-        </Button>
+        <div className="flex items-center gap-2">
+          <CleanupOrphansButton />
+          <Button onClick={() => setAddOpen(true)}>
+            <UserPlus className="size-4" />
+            เพิ่มผู้ใช้
+          </Button>
+        </div>
       </div>
 
       {lastAdminId && (
@@ -361,6 +366,96 @@ function UserRow({
         />
       </td>
     </tr>
+  );
+}
+
+/// Button that scans Supabase Auth and removes rows that no longer have a
+/// matching app-side User. Surfaces a transient confirmation so the admin
+/// knows whether any cleanup happened.
+function CleanupOrphansButton() {
+  const [pending, startTransition] = useTransition();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  function run() {
+    setMessage(null);
+    startTransition(async () => {
+      const res = await cleanupAuthOrphans();
+      setConfirmOpen(false);
+      if (!res.ok) {
+        setMessage({ kind: "err", text: res.error || "ลบ orphan ไม่สำเร็จ" });
+        return;
+      }
+      const n = res.removed?.length ?? 0;
+      setMessage({
+        kind: "ok",
+        text:
+          n === 0
+            ? `ตรวจสอบแล้ว ${res.checked ?? 0} บัญชี — ไม่มี orphan ใน Supabase Auth`
+            : `ลบ orphan ${n} บัญชี: ${res.removed!.join(", ")}`,
+      });
+    });
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setConfirmOpen(true)}
+        disabled={pending}
+        title="ลบบัญชี Supabase Auth ที่ไม่มีอยู่ในตารางผู้ใช้แล้ว"
+      >
+        {pending ? <Loader2 className="size-4 animate-spin" /> : <UserX className="size-4" />}
+        ล้าง auth orphan
+      </Button>
+      {message && (
+        <p
+          className={
+            message.kind === "ok"
+              ? "flex items-center gap-1 text-xs text-emerald-700"
+              : "text-destructive flex items-center gap-1 text-xs"
+          }
+        >
+          {message.kind === "ok" ? (
+            <CheckCircle2 className="size-3" />
+          ) : (
+            <AlertCircle className="size-3" />
+          )}
+          {message.text}
+        </p>
+      )}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>ล้างบัญชี Supabase Auth ที่ไม่ใช้แล้ว</DialogTitle>
+            <DialogDescription>
+              ตรวจสอบและลบ user ใน Supabase Auth ที่ไม่มี row ในตาราง ผู้ใช้ของแอปอีกแล้ว
+              (เช่นถูกลบจาก Supabase Table Editor โดยตรง)
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-muted-foreground text-sm">
+            ผู้ใช้ที่ยังมีอยู่ในระบบจะไม่ถูกแตะต้อง — เฉพาะ orphan เท่านั้น
+          </p>
+          <div className="flex gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => setConfirmOpen(false)}
+              disabled={pending}
+            >
+              ยกเลิก
+            </Button>
+            <Button type="button" className="flex-1" onClick={run} disabled={pending}>
+              {pending ? <Loader2 className="size-4 animate-spin" /> : <UserX className="size-4" />}
+              เริ่มล้าง
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

@@ -657,6 +657,48 @@ export async function deleteUser(id: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+/// Find Supabase Auth users that no longer have a matching row in our
+/// `users` table and hard-delete them from auth too. Reconciles cases where
+/// the public.users row was removed outside of `deleteUser` (e.g. via the
+/// Supabase Table Editor) so the auth side wasn't cleaned up at the time.
+///
+/// Returns the list of emails that were removed so the admin can confirm.
+export async function cleanupAuthOrphans(): Promise<
+  ActionResult & { removed?: string[]; checked?: number }
+> {
+  await requireAdmin();
+  const admin = supabaseAdmin();
+
+  const { data, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  if (error) return { ok: false, error: `อ่านรายชื่อ auth ไม่สำเร็จ: ${error.message}` };
+
+  const appUsers = await prisma.user.findMany({ select: { id: true } });
+  const appIds = new Set(appUsers.map((u) => u.id));
+  const orphans = data.users.filter((u) => !appIds.has(u.id));
+
+  const removed: string[] = [];
+  const failures: string[] = [];
+  for (const u of orphans) {
+    const { error: delErr } = await admin.auth.admin.deleteUser(u.id);
+    if (delErr && !delErr.message.toLowerCase().includes("not found")) {
+      failures.push(`${u.email}: ${delErr.message}`);
+    } else {
+      removed.push(u.email ?? u.id);
+    }
+  }
+
+  if (failures.length > 0) {
+    return {
+      ok: false,
+      error: `ลบบาง user ไม่สำเร็จ: ${failures.join("; ")}`,
+      removed,
+      checked: data.users.length,
+    };
+  }
+  revalidatePath("/admin/users");
+  return { ok: true, removed, checked: data.users.length };
+}
+
 // ============================================================================
 // Month Locks
 // ============================================================================
