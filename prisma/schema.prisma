@@ -74,6 +74,24 @@ model ExpenseSource {
   @@map("expense_sources")
 }
 
+/// Admin-managed expense categories (กลุ่มค่าใช้จ่าย) — e.g. "ค่าน้ำมัน",
+/// "ค่าวัสดุ", "ค่าอาหาร". Distinct from ExpenseSource (which tracks the
+/// wallet/cash drawer the money came from); ExpenseGroup tracks what the
+/// money was spent on. STAFF can view the field but only ADMIN can set or
+/// change it — enforced both client- and server-side.
+model ExpenseGroup {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries Entry[]
+
+  @@map("expense_groups")
+}
+
 /// Admin-managed list of payment methods used on income entries (e.g.
 /// "เงินสด", "เงินโอน", "บัตรเครดิต"). Replaces the old PaymentType enum
 /// so the shop can add new channels without a code change.
@@ -194,6 +212,10 @@ model Entry {
   expenseDetail   String?
   expenseSourceId String?        @db.Uuid
   expenseSource   ExpenseSource? @relation(fields: [expenseSourceId], references: [id], onDelete: SetNull)
+  // ADMIN-only on writes. SetNull on delete so admins can rename/deactivate
+  // an ExpenseGroup without orphaning expense rows.
+  expenseGroupId  String?        @db.Uuid
+  expenseGroup    ExpenseGroup?  @relation(fields: [expenseGroupId], references: [id], onDelete: SetNull)
 
   // ---- Audit ----
   createdById String?  @db.Uuid

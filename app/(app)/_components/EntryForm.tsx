@@ -36,6 +36,7 @@ type Props = {
   entry: EntryWithRelations | null;
   branches: TaxonomyOption[];
   expenseSources: TaxonomyOption[];
+  expenseGroups: TaxonomyOption[];
   paymentMethods: TaxonomyOption[];
   bookingChannels: TaxonomyOption[];
   carBrands: TaxonomyOption[];
@@ -64,6 +65,7 @@ export function EntryForm({
   entry,
   branches,
   expenseSources,
+  expenseGroups,
   paymentMethods,
   bookingChannels,
   carBrands,
@@ -90,6 +92,7 @@ export function EntryForm({
   const [expenseSourceId, setExpenseSourceId] = useState<string>(
     entry?.expenseSourceId ?? expenseSources[0]?.id ?? "",
   );
+  const [expenseGroupId, setExpenseGroupId] = useState<string>(entry?.expenseGroupId ?? "");
 
   // Customer fields are controlled so the "search past customer" dialog can
   // backfill them at once on selection. Free-text fields remain strings;
@@ -206,6 +209,7 @@ export function EntryForm({
       <input type="hidden" name="branchId" value={branchId} />
       <input type="hidden" name="paymentMethodId" value={paymentMethodId} />
       <input type="hidden" name="expenseSourceId" value={expenseSourceId} />
+      <input type="hidden" name="expenseGroupId" value={expenseGroupId} />
       {/* Dropdown FKs — controlled via the Select widgets below; the hidden
           inputs are what actually goes into FormData on submit. */}
       <input type="hidden" name="bookingChannelId" value={bookingChannelId} />
@@ -456,20 +460,28 @@ export function EntryForm({
             labelSize="md"
             error={fieldErrors.expenseDetail}
           />
-          <div className="space-y-1.5">
-            <Label>จ่ายจาก</Label>
-            <Select value={expenseSourceId} onValueChange={setExpenseSourceId}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {expenseSources.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>จ่ายจาก</Label>
+              <Select value={expenseSourceId} onValueChange={setExpenseSourceId}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {expenseSources.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <ExpenseGroupSelect
+              value={expenseGroupId}
+              onValueChange={setExpenseGroupId}
+              options={expenseGroups}
+              isAdmin={currentUser.role === "ADMIN"}
+            />
           </div>
           <FileSlot
             label="แนบไฟล์ (ใบเสร็จ)"
@@ -590,6 +602,49 @@ function TaxonomySelect({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={CLEAR_VALUE}>—</SelectItem>
+          {options.map((o) => (
+            <SelectItem key={o.id} value={o.id}>
+              {o.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/// Expense group is an ADMIN-only field — STAFF sees the dropdown disabled
+/// with a tooltip explaining why. The server also enforces this; we don't
+/// rely on the disabled attribute for security.
+function ExpenseGroupSelect({
+  value,
+  onValueChange,
+  options,
+  isAdmin,
+}: {
+  value: string;
+  onValueChange: (v: string) => void;
+  options: TaxonomyOption[];
+  isAdmin: boolean;
+}) {
+  const CLEAR_VALUE = "__none__";
+  const tooltip = isAdmin ? undefined : "เฉพาะผู้ดูแลระบบเท่านั้นที่กำหนดกลุ่มได้";
+  return (
+    <div className="space-y-1.5">
+      <Label>
+        กลุ่มค่าใช้จ่าย{" "}
+        {!isAdmin && <span className="text-muted-foreground text-xs">(เฉพาะแอดมิน)</span>}
+      </Label>
+      <Select
+        value={value === "" ? CLEAR_VALUE : value}
+        onValueChange={(v) => onValueChange(v === CLEAR_VALUE ? "" : v)}
+        disabled={!isAdmin}
+      >
+        <SelectTrigger title={tooltip}>
+          <SelectValue placeholder="— ยังไม่ระบุ —" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={CLEAR_VALUE}>— ยังไม่ระบุ —</SelectItem>
           {options.map((o) => (
             <SelectItem key={o.id} value={o.id}>
               {o.name}

@@ -71,6 +71,9 @@ const expenseSchema = baseSchema.extend({
   type: z.literal("EXPENSE"),
   expenseDetail: optionalTrim,
   expenseSourceId: optionalUuid,
+  // ADMIN-only — see the user-role enforcement block below where we replace
+  // a STAFF submission with the existing-row value (or null on create).
+  expenseGroupId: optionalUuid,
 });
 
 const entrySchema = z.discriminatedUnion("type", [incomeSchema, expenseSchema]);
@@ -127,7 +130,13 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
     };
   }
 
-  const sharedPayload =
+  // ADMIN-only enforcement for expenseGroupId. STAFF submissions are silently
+  // ignored: on create the value becomes null; on update we fall back to the
+  // existing row's value (computed after the existing-row fetch below).
+  let effectiveExpenseGroupId =
+    data.type === "EXPENSE" && user.role === "ADMIN" ? data.expenseGroupId : null;
+
+  const buildSharedPayload = () =>
     data.type === "INCOME"
       ? {
           custName: data.custName,
@@ -146,6 +155,7 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
           paymentMethodId: data.paymentMethodId,
           expenseDetail: null,
           expenseSourceId: null,
+          expenseGroupId: null,
         }
       : {
           custName: null,
@@ -164,13 +174,14 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
           paymentMethodId: null,
           expenseDetail: data.expenseDetail,
           expenseSourceId: data.expenseSourceId,
+          expenseGroupId: effectiveExpenseGroupId,
         };
 
   try {
     if (data.id) {
       const existing = await prisma.entry.findUnique({
         where: { id: data.id },
-        select: { branchId: true, yyyyMm: true, createdById: true },
+        select: { branchId: true, yyyyMm: true, createdById: true, expenseGroupId: true },
       });
       if (!existing) return { ok: false, error: "ไม่พบรายการ" };
       if (!canWriteToBranch(user, existing.branchId)) {
@@ -188,6 +199,11 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
         return { ok: false, error: "ไม่อนุญาตให้แก้ไขรายการที่ผู้อื่นบันทึกไว้" };
       }
 
+      // STAFF cannot mutate the expense group — preserve whatever was on the row.
+      if (user.role === "STAFF" && data.type === "EXPENSE") {
+        effectiveExpenseGroupId = existing.expenseGroupId;
+      }
+
       await prisma.entry.update({
         where: { id: data.id },
         data: {
@@ -196,7 +212,7 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
           date: new Date(data.date),
           yyyyMm,
           amount: data.amount,
-          ...sharedPayload,
+          ...buildSharedPayload(),
           updatedById: user.id,
         },
       });
@@ -212,7 +228,7 @@ export async function saveEntry(form: FormData): Promise<EntryActionState> {
         date: new Date(data.date),
         yyyyMm,
         amount: data.amount,
-        ...sharedPayload,
+        ...buildSharedPayload(),
         createdById: user.id,
         updatedById: user.id,
       },

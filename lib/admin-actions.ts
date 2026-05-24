@@ -135,6 +135,59 @@ export async function toggleExpenseSourceActive(
 }
 
 // ============================================================================
+// Expense Groups (กลุ่มค่าใช้จ่าย)
+// ============================================================================
+
+const expenseGroupNameSchema = z.object({
+  name: z.string().trim().min(1, "กรุณากรอกชื่อกลุ่มค่าใช้จ่าย").max(100),
+});
+
+export async function createExpenseGroup(
+  _prev: ActionResult,
+  form: FormData,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = expenseGroupNameSchema.safeParse({ name: form.get("name") });
+  if (!parsed.success) {
+    return { ok: false, error: "ข้อมูลไม่ถูกต้อง", fieldErrors: fieldErrorsFromZod(parsed.error) };
+  }
+  try {
+    const max = await prisma.expenseGroup.aggregate({ _max: { sortOrder: true } });
+    await prisma.expenseGroup.create({
+      data: { name: parsed.data.name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+    });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีกลุ่มชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/expense-groups");
+  return { ok: true };
+}
+
+export async function renameExpenseGroup(id: string, name: string): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = expenseGroupNameSchema.safeParse({ name });
+  if (!parsed.success) {
+    return { ok: false, error: "ชื่อไม่ถูกต้อง" };
+  }
+  try {
+    await prisma.expenseGroup.update({ where: { id }, data: { name: parsed.data.name } });
+  } catch (err) {
+    if (uniqueViolation(err)) return { ok: false, error: "มีกลุ่มชื่อนี้อยู่แล้ว" };
+    throw err;
+  }
+  revalidatePath("/admin/expense-groups");
+  return { ok: true };
+}
+
+export async function toggleExpenseGroupActive(id: string, active: boolean): Promise<ActionResult> {
+  await requireAdmin();
+  await prisma.expenseGroup.update({ where: { id }, data: { active } });
+  revalidatePath("/admin/expense-groups");
+  return { ok: true };
+}
+
+// ============================================================================
 // Payment Methods
 // ============================================================================
 

@@ -17,6 +17,7 @@ type Props = {
   entries: EntryWithRelations[];
   branches: TaxonomyOption[];
   expenseSources: TaxonomyOption[];
+  expenseGroups: TaxonomyOption[];
   paymentMethods: TaxonomyOption[];
   bookingChannels: TaxonomyOption[];
   carBrands: TaxonomyOption[];
@@ -32,6 +33,7 @@ export function EntryListView({
   entries,
   branches,
   expenseSources,
+  expenseGroups,
   paymentMethods,
   bookingChannels,
   carBrands,
@@ -86,6 +88,7 @@ export function EntryListView({
         entry={editingEntry}
         branches={branches}
         expenseSources={expenseSources}
+        expenseGroups={expenseGroups}
         paymentMethods={paymentMethods}
         bookingChannels={bookingChannels}
         carBrands={carBrands}

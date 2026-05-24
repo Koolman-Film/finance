@@ -22,6 +22,7 @@ export type EntryWithRelations = Omit<Entry, "amount" | "bookedPrice" | "soldPri
   soldPrice: number | null;
   branch: { name: string };
   expenseSource?: { name: string } | null;
+  expenseGroup?: { name: string } | null;
   bookingChannel?: { name: string } | null;
   carBrand?: { name: string } | null;
   productType?: { name: string } | null;

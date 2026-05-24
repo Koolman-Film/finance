@@ -33,6 +33,7 @@ export default async function IncomePage({
     entries,
     branches,
     expenseSources,
+    expenseGroups,
     paymentMethods,
     bookingChannels,
     carBrands,
@@ -60,6 +61,7 @@ export default async function IncomePage({
     }),
     prisma.branch.findMany(activeTaxonomy),
     prisma.expenseSource.findMany(activeTaxonomy),
+    prisma.expenseGroup.findMany(activeTaxonomy),
     prisma.paymentMethod.findMany(activeTaxonomy),
     prisma.bookingChannel.findMany(activeTaxonomy),
     prisma.carBrand.findMany(activeTaxonomy),
@@ -74,6 +76,7 @@ export default async function IncomePage({
       entries={entries.map(toClientEntry)}
       branches={branches}
       expenseSources={expenseSources}
+      expenseGroups={expenseGroups}
       paymentMethods={paymentMethods}
       bookingChannels={bookingChannels}
       carBrands={carBrands}

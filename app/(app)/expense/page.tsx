@@ -35,6 +35,7 @@ export default async function ExpensePage({
     entries,
     branches,
     expenseSources,
+    expenseGroups,
     paymentMethods,
     bookingChannels,
     carBrands,
@@ -58,6 +59,7 @@ export default async function ExpensePage({
     }),
     prisma.branch.findMany(activeTaxonomy),
     prisma.expenseSource.findMany(activeTaxonomy),
+    prisma.expenseGroup.findMany(activeTaxonomy),
     prisma.paymentMethod.findMany(activeTaxonomy),
     prisma.bookingChannel.findMany(activeTaxonomy),
     prisma.carBrand.findMany(activeTaxonomy),
@@ -72,6 +74,7 @@ export default async function ExpensePage({
       entries={entries.map(toClientEntry)}
       branches={branches}
       expenseSources={expenseSources}
+      expenseGroups={expenseGroups}
       paymentMethods={paymentMethods}
       bookingChannels={bookingChannels}
       carBrands={carBrands}

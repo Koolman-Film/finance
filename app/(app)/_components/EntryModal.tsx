@@ -21,6 +21,7 @@ type Props = {
   entry: EntryWithRelations | null;
   branches: TaxonomyOption[];
   expenseSources: TaxonomyOption[];
+  expenseGroups: TaxonomyOption[];
   paymentMethods: TaxonomyOption[];
   bookingChannels: TaxonomyOption[];
   carBrands: TaxonomyOption[];
@@ -37,6 +38,7 @@ export function EntryModal({
   entry,
   branches,
   expenseSources,
+  expenseGroups,
   paymentMethods,
   bookingChannels,
   carBrands,
@@ -64,6 +66,7 @@ export function EntryModal({
           entry={entry}
           branches={branches}
           expenseSources={expenseSources}
+          expenseGroups={expenseGroups}
           paymentMethods={paymentMethods}
           bookingChannels={bookingChannels}
           carBrands={carBrands}
