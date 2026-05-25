@@ -13,9 +13,18 @@ export type ExportRow = {
   type: "INCOME" | "EXPENSE";
   /// INCOME: customer name. EXPENSE: null.
   customer: string | null;
-  /// INCOME: "{brand} {model} ({license})" with any missing parts dropped. EXPENSE: null.
+  /// INCOME: "{brand} {model}" (license now lives in its own column).
+  /// EXPENSE: null.
   car: string | null;
-  /// INCOME: sold (or booked / type) product. EXPENSE: expenseDetail.
+  /// INCOME: license plate. EXPENSE: null.
+  license: string | null;
+  /// INCOME: booking channel (LINE, Facebook, Walk-in…). EXPENSE: null.
+  bookingChannel: string | null;
+  /// INCOME: sold product name only — no fallback. EXPENSE: null.
+  soldProduct: string | null;
+  /// INCOME: sold (or booked / type) product — kept as a generic summary
+  /// column so the report still has a "what was this" line when soldProduct
+  /// is blank. EXPENSE: expenseDetail.
   item: string;
   amount: number;
   /// INCOME: name from the admin-managed PaymentMethod table
@@ -35,16 +44,11 @@ export type ExportData = {
   totalExpense: number;
 };
 
-function composeCar(
-  brand: string | null,
-  model: string | null,
-  license: string | null,
-): string | null {
+function composeCar(brand: string | null, model: string | null): string | null {
   const parts: string[] = [];
   if (brand) parts.push(brand);
   if (model) parts.push(model);
   const text = parts.join(" ");
-  if (license) return text ? `${text} (${license})` : license;
   return text || null;
 }
 
@@ -81,6 +85,7 @@ export async function loadExportData(
       expenseSource: { select: { name: true } },
       paymentMethod: { select: { name: true } },
       // Taxonomy relations (replaces the old free-text columns).
+      bookingChannel: { select: { name: true } },
       carBrand: { select: { name: true } },
       productType: { select: { name: true } },
       bookedProduct: { select: { name: true } },
@@ -95,7 +100,10 @@ export async function loadExportData(
     branchName: e.branch.name,
     type: e.type,
     customer: e.type === "INCOME" ? e.custName : null,
-    car: e.type === "INCOME" ? composeCar(e.carBrand?.name ?? null, e.carModel, e.license) : null,
+    car: e.type === "INCOME" ? composeCar(e.carBrand?.name ?? null, e.carModel) : null,
+    license: e.type === "INCOME" ? e.license : null,
+    bookingChannel: e.type === "INCOME" ? (e.bookingChannel?.name ?? null) : null,
+    soldProduct: e.type === "INCOME" ? (e.soldProduct?.name ?? null) : null,
     item:
       e.type === "INCOME"
         ? e.soldProduct?.name || e.bookedProduct?.name || e.productType?.name || "—"

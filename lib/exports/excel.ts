@@ -17,14 +17,17 @@ export async function buildExcel(data: ExportData): Promise<Buffer> {
   sheet.addRow([`วันที่ออกรายงาน: ${new Date().toLocaleString("th-TH-u-ca-buddhist")}`]);
   sheet.addRow([]);
 
-  // Header row — customer / car / item are now their own columns so the
-  // result is filterable/sortable in Excel.
+  // Header row — each field gets its own column so Excel can filter/sort.
+  // จองผ่าน / ทะเบียนรถ / สินค้าที่ขาย mirror the on-screen income list.
   const headers = [
     "วันที่",
     "ประเภท",
     "สาขา",
     "ลูกค้า",
+    "จองผ่าน",
     "รถ",
+    "ทะเบียนรถ",
+    "สินค้าที่ขาย",
     "รายการ",
     "ช่องทาง / แหล่งเงิน",
     "ผู้บันทึก",
@@ -44,43 +47,41 @@ export async function buildExcel(data: ExportData): Promise<Buffer> {
       r.type === "INCOME" ? "รายรับ" : "รายจ่าย",
       r.branchName,
       r.customer ?? "",
+      r.bookingChannel ?? "",
       r.car ?? "",
+      r.license ?? "",
+      r.soldProduct ?? "",
       r.item,
       paymentOrSource,
       r.createdByName ?? "",
       r.amount,
     ]);
     row.getCell(1).numFmt = "dd/mm/yyyy";
-    row.getCell(9).numFmt = THB;
-    if (r.type === "EXPENSE") row.getCell(9).font = { color: { argb: "FFC00000" } };
+    row.getCell(12).numFmt = THB;
+    if (r.type === "EXPENSE") row.getCell(12).font = { color: { argb: "FFC00000" } };
   }
 
-  // Totals
+  // Totals — label sits in column 11 (ผู้บันทึก), amount in column 12.
   sheet.addRow([]);
-  const incomeRow = sheet.addRow(["", "", "", "", "", "", "", "รายรับรวม", data.totalIncome]);
-  incomeRow.getCell(9).numFmt = THB;
-  incomeRow.getCell(9).font = { bold: true, color: { argb: "FF006400" } };
-  incomeRow.getCell(8).font = { bold: true };
+  const blanks = (n: number) => Array.from({ length: n }, () => "");
+  const incomeRow = sheet.addRow([...blanks(10), "รายรับรวม", data.totalIncome]);
+  incomeRow.getCell(12).numFmt = THB;
+  incomeRow.getCell(12).font = { bold: true, color: { argb: "FF006400" } };
+  incomeRow.getCell(11).font = { bold: true };
 
-  const expenseRow = sheet.addRow(["", "", "", "", "", "", "", "รายจ่ายรวม", data.totalExpense]);
-  expenseRow.getCell(9).numFmt = THB;
-  expenseRow.getCell(9).font = { bold: true, color: { argb: "FFC00000" } };
-  expenseRow.getCell(8).font = { bold: true };
+  const expenseRow = sheet.addRow([...blanks(10), "รายจ่ายรวม", data.totalExpense]);
+  expenseRow.getCell(12).numFmt = THB;
+  expenseRow.getCell(12).font = { bold: true, color: { argb: "FFC00000" } };
+  expenseRow.getCell(11).font = { bold: true };
 
   const netRow = sheet.addRow([
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
+    ...blanks(10),
     "คงเหลือสุทธิ",
     data.totalIncome - data.totalExpense,
   ]);
-  netRow.getCell(9).numFmt = THB;
-  netRow.getCell(9).font = { bold: true };
-  netRow.getCell(8).font = { bold: true };
+  netRow.getCell(12).numFmt = THB;
+  netRow.getCell(12).font = { bold: true };
+  netRow.getCell(11).font = { bold: true };
 
   // Column widths sized for typical content.
   sheet.columns = [
@@ -88,8 +89,11 @@ export async function buildExcel(data: ExportData): Promise<Buffer> {
     { width: 9 }, // type
     { width: 14 }, // branch
     { width: 22 }, // customer
-    { width: 32 }, // car
-    { width: 28 }, // item
+    { width: 14 }, // จองผ่าน
+    { width: 24 }, // car (brand + model, no license)
+    { width: 16 }, // ทะเบียนรถ
+    { width: 28 }, // สินค้าที่ขาย
+    { width: 24 }, // รายการ
     { width: 18 }, // payment / source
     { width: 16 }, // created by
     { width: 18 }, // amount

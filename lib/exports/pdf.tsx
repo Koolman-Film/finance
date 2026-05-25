@@ -36,14 +36,15 @@ const COLORS = {
 };
 
 // Landscape A4 = 842 × 595pt. With 28pt page padding either side, the table
-// has ~786pt of usable horizontal space — enough for 9 narrow-but-readable
-// columns including three separate columns for customer / car / item.
+// has ~786pt of usable horizontal space. We now have 12 columns (added
+// จองผ่าน / ทะเบียนรถ / สินค้าที่ขาย) — font drops to 7pt and per-column
+// widths got tightened so everything still fits without horizontal clipping.
 const styles = StyleSheet.create({
   page: {
     paddingHorizontal: 28,
     paddingTop: 28,
     paddingBottom: 28,
-    fontSize: 8,
+    fontSize: 7,
     fontFamily: "Sarabun",
     color: COLORS.text,
   },
@@ -63,24 +64,25 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
     paddingVertical: 5,
     fontWeight: 700,
-    fontSize: 8,
+    fontSize: 7,
   },
-  // Column widths (sum ~ 786pt available in landscape A4).
+  // Column widths (sum ≈ 786pt available in landscape A4).
   //
   // Thai text in pdfkit/react-pdf doesn't break at character boundaries —
-  // strings either fit on one line or get clipped. Branch column needs to
-  // be generous enough that no realistic Thai branch name ever overflows
-  // (longest in seed: เชียงใหม่ = 6 chars; future-proofed for ~12-char
-  // names like นครศรีธรรมราช).
-  cellDate: { width: 70, paddingHorizontal: 4 },
-  cellType: { width: 42, paddingHorizontal: 4 },
-  cellBranch: { width: 115, paddingHorizontal: 4 },
-  cellCustomer: { width: 88, paddingHorizontal: 4 },
-  cellCar: { width: 128, paddingHorizontal: 4 },
-  cellItem: { width: 128, paddingHorizontal: 4 },
-  cellPayment: { width: 72, paddingHorizontal: 4 },
-  cellWho: { width: 56, paddingHorizontal: 4 },
-  cellAmount: { width: 87, paddingHorizontal: 4, textAlign: "right" },
+  // strings either fit on one line or get clipped. Sized so typical content
+  // (Thai names, car models, license plates) fits on a single line.
+  cellDate: { width: 54, paddingHorizontal: 3 },
+  cellType: { width: 36, paddingHorizontal: 3 },
+  cellBranch: { width: 80, paddingHorizontal: 3 },
+  cellCustomer: { width: 84, paddingHorizontal: 3 },
+  cellBookingChannel: { width: 56, paddingHorizontal: 3 },
+  cellCar: { width: 110, paddingHorizontal: 3 },
+  cellLicense: { width: 68, paddingHorizontal: 3 },
+  cellSoldProduct: { width: 96, paddingHorizontal: 3 },
+  cellItem: { width: 38, paddingHorizontal: 3 },
+  cellPayment: { width: 60, paddingHorizontal: 3 },
+  cellWho: { width: 48, paddingHorizontal: 3 },
+  cellAmount: { width: 56, paddingHorizontal: 3, textAlign: "right" },
 
   totals: {
     marginTop: 12,
@@ -139,7 +141,10 @@ function ReportDocument({ data }: { data: ExportData }) {
             <Text style={styles.cellType}>ประเภท</Text>
             <Text style={styles.cellBranch}>สาขา</Text>
             <Text style={styles.cellCustomer}>ลูกค้า</Text>
+            <Text style={styles.cellBookingChannel}>จองผ่าน</Text>
             <Text style={styles.cellCar}>รถ</Text>
+            <Text style={styles.cellLicense}>ทะเบียนรถ</Text>
+            <Text style={styles.cellSoldProduct}>สินค้าที่ขาย</Text>
             <Text style={styles.cellItem}>รายการ</Text>
             <Text style={styles.cellPayment}>ช่องทาง/แหล่งเงิน</Text>
             <Text style={styles.cellWho}>ผู้บันทึก</Text>
@@ -173,7 +178,10 @@ function ReportDocument({ data }: { data: ExportData }) {
                 </Text>
                 <Text style={styles.cellBranch}>{r.branchName}</Text>
                 <Text style={styles.cellCustomer}>{r.customer ?? "—"}</Text>
+                <Text style={styles.cellBookingChannel}>{r.bookingChannel ?? "—"}</Text>
                 <Text style={styles.cellCar}>{r.car ?? "—"}</Text>
+                <Text style={styles.cellLicense}>{r.license ?? "—"}</Text>
+                <Text style={styles.cellSoldProduct}>{r.soldProduct ?? "—"}</Text>
                 <Text style={styles.cellItem}>{r.item}</Text>
                 <Text style={styles.cellPayment}>
                   {r.type === "INCOME" ? (r.paymentMethod ?? "—") : (r.expenseSource ?? "—")}
