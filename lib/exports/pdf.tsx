@@ -6,6 +6,37 @@ import type { ExportData } from "./data";
 // Register Sarabun (Thai-capable) so the PDF renders Thai script correctly.
 // pdfkit needs TTF, which we ship under public/fonts/ — same file works on
 // Vercel because public/ assets are included in the deployment bundle.
+//
+// We also register a hyphenation callback so the line breaker has somewhere
+// to wrap inside Thai strings (Thai has no spaces between words, so the
+// default English-style break-on-whitespace would leave the whole string
+// as one un-breakable chunk that gets clipped at narrow cell widths).
+// Solution pattern from diegomura/react-pdf#1568 — adapted to use
+// Intl.Segmenter so combining tone marks (ี ้ ำ etc.) stay attached to
+// their base character.
+const thaiSegmenter =
+  typeof Intl !== "undefined" && "Segmenter" in Intl
+    ? new Intl.Segmenter("th", { granularity: "grapheme" })
+    : null;
+
+function hyphenateForThai(word: string): string[] {
+  // Pure non-Thai content — leave it intact so English words don't get
+  // broken at every character.
+  if (!/[฀-๿]/.test(word)) return [word];
+
+  // Thai or mixed-script. Push each grapheme followed by an empty string
+  // so react-pdf has a break opportunity between every glyph WITHOUT
+  // inserting a visible hyphen at the break point.
+  const segments = thaiSegmenter
+    ? Array.from(thaiSegmenter.segment(word), (s) => s.segment)
+    : Array.from(word);
+  const out: string[] = [];
+  for (const s of segments) {
+    out.push(s, "");
+  }
+  return out;
+}
+
 let fontsRegistered = false;
 function registerFonts() {
   if (fontsRegistered) return;
@@ -22,6 +53,7 @@ function registerFonts() {
       },
     ],
   });
+  Font.registerHyphenationCallback(hyphenateForThai);
   fontsRegistered = true;
 }
 
@@ -76,10 +108,10 @@ const styles = StyleSheet.create({
   cellBranch: { width: 80, paddingHorizontal: 3 },
   cellCustomer: { width: 84, paddingHorizontal: 3 },
   cellBookingChannel: { width: 56, paddingHorizontal: 3 },
-  cellCar: { width: 110, paddingHorizontal: 3 },
+  cellCar: { width: 122, paddingHorizontal: 3 },
   cellLicense: { width: 68, paddingHorizontal: 3 },
   cellSoldProduct: { width: 96, paddingHorizontal: 3 },
-  cellItem: { width: 38, paddingHorizontal: 3 },
+  cellItem: { width: 26, paddingHorizontal: 3 },
   cellPayment: { width: 60, paddingHorizontal: 3 },
   cellWho: { width: 48, paddingHorizontal: 3 },
   cellAmount: { width: 56, paddingHorizontal: 3, textAlign: "right" },
