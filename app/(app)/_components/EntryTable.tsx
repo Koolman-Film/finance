@@ -34,6 +34,8 @@ export function EntryTable({ type, entries, lockedMonths }: Props) {
     );
   }
 
+  const isIncome = type === "INCOME";
+
   return (
     <div className="-mx-1 overflow-x-auto px-1">
       <table className="w-full border-collapse text-left">
@@ -41,6 +43,13 @@ export function EntryTable({ type, entries, lockedMonths }: Props) {
           <tr className="bg-muted/60 text-sm">
             <th className="p-3 font-medium">วันที่</th>
             <th className="p-3 font-medium">รายละเอียด</th>
+            {isIncome && (
+              <>
+                <th className="p-3 font-medium">จองผ่าน</th>
+                <th className="p-3 font-medium">ทะเบียนรถ</th>
+                <th className="p-3 font-medium">สินค้าที่ขาย</th>
+              </>
+            )}
             <th className="p-3 font-medium">สาขา</th>
             <th className="p-3 font-medium">ผู้บันทึก</th>
             <th className="p-3 text-right font-medium">จำนวนเงิน (บาท)</th>
@@ -50,14 +59,13 @@ export function EntryTable({ type, entries, lockedMonths }: Props) {
         <tbody>
           {entries.map((e) => {
             const locked = lockedMonths.has(e.yyyyMm);
-            const summary =
-              type === "INCOME"
-                ? e.custName ||
-                  e.productType?.name ||
-                  e.soldProduct?.name ||
-                  e.bookedProduct?.name ||
-                  "-"
-                : e.expenseDetail || "-";
+            const summary = isIncome
+              ? e.custName ||
+                e.productType?.name ||
+                e.soldProduct?.name ||
+                e.bookedProduct?.name ||
+                "-"
+              : e.expenseDetail || "-";
             return (
               <tr key={e.id} className="hover:bg-muted/30 border-b text-sm">
                 <td className="p-3 whitespace-nowrap">{formatThaiDate(e.date)}</td>
@@ -70,6 +78,17 @@ export function EntryTable({ type, entries, lockedMonths }: Props) {
                     />
                   )}
                 </td>
+                {isIncome && (
+                  <>
+                    <td className="text-muted-foreground p-3 whitespace-nowrap">
+                      {e.bookingChannel?.name ?? "—"}
+                    </td>
+                    <td className="text-muted-foreground p-3 whitespace-nowrap">
+                      {e.license || "—"}
+                    </td>
+                    <td className="text-muted-foreground p-3">{e.soldProduct?.name ?? "—"}</td>
+                  </>
+                )}
                 <td className="p-3 whitespace-nowrap">{e.branch.name}</td>
                 <td className="text-muted-foreground p-3 whitespace-nowrap">
                   {e.createdBy?.displayName ?? "—"}
