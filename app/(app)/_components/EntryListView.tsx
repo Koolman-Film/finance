@@ -77,7 +77,13 @@ export function EntryListView({
         </Button>
       </div>
 
-      <EntryTable type={type} entries={entries} lockedMonths={new Set(lockedMonths)} />
+      <EntryTable
+        type={type}
+        entries={entries}
+        lockedMonths={new Set(lockedMonths)}
+        expenseGroups={expenseGroups}
+        currentUser={currentUser}
+      />
 
       <EntryModal
         open={modalOpen}

@@ -114,7 +114,7 @@ function renderHtml(data: ExportData, fonts: { regular: string; bold: string }):
 
   const rowsHtml = data.rows.length
     ? data.rows.map((r) => rowHtml(r)).join("")
-    : `<tr><td colspan="12" class="empty">ไม่มีรายการในช่วงที่เลือก</td></tr>`;
+    : `<tr><td colspan="13" class="empty">ไม่มีรายการในช่วงที่เลือก</td></tr>`;
 
   return `<!DOCTYPE html>
 <html lang="th">
@@ -180,18 +180,19 @@ function renderHtml(data: ExportData, fonts: { regular: string; bold: string }):
   .muted { color: #6b7280; }
 
   /* Column widths sum to 100% — fixed layout keeps them stable across pages. */
-  col.c-date { width: 7.5%; }
-  col.c-type { width: 5%; }
-  col.c-branch { width: 9%; }
-  col.c-customer { width: 11%; }
-  col.c-channel { width: 7%; }
-  col.c-car { width: 13%; }
-  col.c-license { width: 8%; }
-  col.c-sold { width: 12%; }
-  col.c-item { width: 9%; }
-  col.c-payment { width: 8%; }
-  col.c-who { width: 6%; }
-  col.c-amount { width: 7%; }
+  col.c-date { width: 7%; }
+  col.c-type { width: 4.5%; }
+  col.c-branch { width: 8%; }
+  col.c-customer { width: 10%; }
+  col.c-channel { width: 6.5%; }
+  col.c-car { width: 12%; }
+  col.c-license { width: 7%; }
+  col.c-sold { width: 11%; }
+  col.c-item { width: 8%; }
+  col.c-payment { width: 7%; }
+  col.c-group { width: 7%; }
+  col.c-who { width: 5.5%; }
+  col.c-amount { width: 6.5%; }
 
   .totals {
     margin-top: 16px;
@@ -233,6 +234,7 @@ function renderHtml(data: ExportData, fonts: { regular: string; bold: string }):
       <col class="c-sold" />
       <col class="c-item" />
       <col class="c-payment" />
+      <col class="c-group" />
       <col class="c-who" />
       <col class="c-amount" />
     </colgroup>
@@ -248,6 +250,7 @@ function renderHtml(data: ExportData, fonts: { regular: string; bold: string }):
         <th>สินค้าที่ขาย</th>
         <th>รายการ</th>
         <th>ช่องทาง/แหล่งเงิน</th>
+        <th>กลุ่มค่าใช้จ่าย</th>
         <th>ผู้บันทึก</th>
         <th class="num">จำนวนเงิน (บาท)</th>
       </tr>
@@ -290,6 +293,7 @@ function rowHtml(r: ExportRow): string {
     <td>${escapeHtml(r.soldProduct ?? "—")}</td>
     <td class="muted">${escapeHtml(r.item)}</td>
     <td class="muted">${escapeHtml(paymentOrSource)}</td>
+    <td class="muted">${escapeHtml(r.expenseGroup ?? "—")}</td>
     <td class="muted">${escapeHtml(r.createdByName ?? "—")}</td>
     <td class="${amountClass}">${fmtThb(r.amount)}</td>
   </tr>`;

@@ -49,6 +49,7 @@ export default async function ExpensePage({
       include: {
         branch: { select: { name: true } },
         expenseSource: { select: { name: true } },
+        expenseGroup: { select: { name: true } },
         createdBy: { select: { displayName: true } },
         updatedBy: { select: { displayName: true } },
         files: {

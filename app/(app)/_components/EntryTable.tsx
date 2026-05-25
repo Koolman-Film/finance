@@ -1,20 +1,41 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { Lock, Paperclip } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { AlertCircle, Lock, Paperclip } from "lucide-react";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { AppUser } from "@/lib/auth";
+import { updateExpenseGroup } from "@/lib/entry-actions";
 import { formatThaiDate, formatThb } from "@/lib/format";
 
+import type { TaxonomyOption } from "./EntryForm";
 import type { EntryWithRelations } from "./types";
 
 type Props = {
   type: "INCOME" | "EXPENSE";
   entries: EntryWithRelations[];
   lockedMonths: Set<string>;
+  /// Expense-only: the active list of admin-managed กลุ่มค่าใช้จ่าย used by
+  /// the inline editor in each row. Unused for income tables.
+  expenseGroups?: TaxonomyOption[];
+  currentUser?: AppUser;
 };
 
-export function EntryTable({ type, entries, lockedMonths }: Props) {
+export function EntryTable({
+  type,
+  entries,
+  lockedMonths,
+  expenseGroups = [],
+  currentUser,
+}: Props) {
   const pathname = usePathname();
   const search = useSearchParams();
 
@@ -35,6 +56,8 @@ export function EntryTable({ type, entries, lockedMonths }: Props) {
   }
 
   const isIncome = type === "INCOME";
+  const isExpense = type === "EXPENSE";
+  const canEditGroup = currentUser?.role === "ADMIN";
 
   return (
     <div className="-mx-1 overflow-x-auto px-1">
@@ -48,6 +71,12 @@ export function EntryTable({ type, entries, lockedMonths }: Props) {
                 <th className="p-3 font-medium">จองผ่าน</th>
                 <th className="p-3 font-medium">ทะเบียนรถ</th>
                 <th className="p-3 font-medium">สินค้าที่ขาย</th>
+              </>
+            )}
+            {isExpense && (
+              <>
+                <th className="p-3 font-medium">กลุ่มค่าใช้จ่าย</th>
+                <th className="p-3 font-medium">จ่ายจาก</th>
               </>
             )}
             <th className="p-3 font-medium">สาขา</th>
@@ -89,6 +118,23 @@ export function EntryTable({ type, entries, lockedMonths }: Props) {
                     <td className="text-muted-foreground p-3">{e.soldProduct?.name ?? "—"}</td>
                   </>
                 )}
+                {isExpense && (
+                  <>
+                    <td className="p-3">
+                      <ExpenseGroupCell
+                        entryId={e.id}
+                        currentValue={e.expenseGroupId ?? ""}
+                        currentName={e.expenseGroup?.name ?? null}
+                        options={expenseGroups}
+                        editable={canEditGroup && !locked}
+                        locked={locked}
+                      />
+                    </td>
+                    <td className="text-muted-foreground p-3 whitespace-nowrap">
+                      {e.expenseSource?.name ?? "—"}
+                    </td>
+                  </>
+                )}
                 <td className="p-3 whitespace-nowrap">{e.branch.name}</td>
                 <td className="text-muted-foreground p-3 whitespace-nowrap">
                   {e.createdBy?.displayName ?? "—"}
@@ -116,6 +162,83 @@ export function EntryTable({ type, entries, lockedMonths }: Props) {
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/// Inline editor for the กลุ่มค่าใช้จ่าย column. ADMIN sees a Select that
+/// fires updateExpenseGroup on change; everyone else (and locked months)
+/// sees the value as plain text. Errors surface below the cell.
+const CLEAR_VALUE = "__none__";
+
+function ExpenseGroupCell({
+  entryId,
+  currentValue,
+  currentName,
+  options,
+  editable,
+  locked,
+}: {
+  entryId: string;
+  currentValue: string;
+  currentName: string | null;
+  options: TaxonomyOption[];
+  editable: boolean;
+  locked: boolean;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  if (!editable) {
+    return (
+      <span className="text-muted-foreground whitespace-nowrap">
+        {currentName ?? "—"}
+        {locked && (
+          <Lock className="ml-1 inline size-3 opacity-60" aria-label="เดือนถูกล็อค แก้ไขไม่ได้" />
+        )}
+      </span>
+    );
+  }
+
+  function onChange(next: string) {
+    const nextId = next === CLEAR_VALUE ? null : next;
+    setError(null);
+    startTransition(async () => {
+      const res = await updateExpenseGroup(entryId, nextId);
+      if (!res.ok) {
+        // updateExpenseGroup never returns the idle variant, so error is set.
+        setError("error" in res ? res.error : "บันทึกไม่สำเร็จ");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="min-w-[10rem] space-y-1">
+      <Select
+        value={currentValue === "" ? CLEAR_VALUE : currentValue}
+        onValueChange={onChange}
+        disabled={pending}
+      >
+        <SelectTrigger className="h-8 text-xs">
+          <SelectValue placeholder="— เลือกกลุ่ม —" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={CLEAR_VALUE}>— ยังไม่ระบุ —</SelectItem>
+          {options.map((o) => (
+            <SelectItem key={o.id} value={o.id}>
+              {o.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {error && (
+        <p className="text-destructive flex items-center gap-1 text-xs">
+          <AlertCircle className="size-3" /> {error}
+        </p>
+      )}
     </div>
   );
 }

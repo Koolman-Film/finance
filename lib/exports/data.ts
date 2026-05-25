@@ -32,6 +32,8 @@ export type ExportRow = {
   paymentMethod: string | null;
   /// EXPENSE: source name (e.g. "เงินสดย่อย"). INCOME: null.
   expenseSource: string | null;
+  /// EXPENSE: ADMIN-classified group name (e.g. "ค่าน้ำมัน"). INCOME: null.
+  expenseGroup: string | null;
   createdByName: string | null;
 };
 
@@ -83,6 +85,7 @@ export async function loadExportData(
     include: {
       branch: { select: { name: true } },
       expenseSource: { select: { name: true } },
+      expenseGroup: { select: { name: true } },
       paymentMethod: { select: { name: true } },
       // Taxonomy relations (replaces the old free-text columns).
       bookingChannel: { select: { name: true } },
@@ -111,6 +114,7 @@ export async function loadExportData(
     amount: Number(e.amount),
     paymentMethod: e.paymentMethod?.name ?? null,
     expenseSource: e.expenseSource?.name ?? null,
+    expenseGroup: e.expenseGroup?.name ?? null,
     createdByName: e.createdBy?.displayName ?? null,
   }));
 

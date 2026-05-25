@@ -270,3 +270,42 @@ export async function deleteEntry(id: string): Promise<EntryActionState> {
   revalidatePath("/summary");
   return { ok: true, id };
 }
+
+/// Inline-editor companion for the expense list. ADMIN-only — patches just
+/// the expenseGroupId on a single expense row without going through the
+/// full saveEntry validation surface. Respects branch scope + month locks.
+export async function updateExpenseGroup(
+  entryId: string,
+  expenseGroupId: string | null,
+): Promise<EntryActionState> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") {
+    return { ok: false, error: "เฉพาะผู้ดูแลระบบเท่านั้นที่กำหนดกลุ่มได้" };
+  }
+  if (expenseGroupId !== null && !uuid.safeParse(expenseGroupId).success) {
+    return { ok: false, error: "รหัสกลุ่มไม่ถูกต้อง" };
+  }
+
+  const existing = await prisma.entry.findUnique({
+    where: { id: entryId },
+    select: { branchId: true, yyyyMm: true, type: true },
+  });
+  if (!existing) return { ok: false, error: "ไม่พบรายการ" };
+  if (existing.type !== "EXPENSE") {
+    return { ok: false, error: "กำหนดกลุ่มได้เฉพาะรายการรายจ่ายเท่านั้น" };
+  }
+  if (!canWriteToBranch(user, existing.branchId)) {
+    return { ok: false, error: "คุณไม่มีสิทธิ์แก้ไขรายการของสาขานี้" };
+  }
+  if (await isMonthLocked(existing.yyyyMm)) {
+    return { ok: false, error: `เดือน ${existing.yyyyMm} ถูกล็อคไว้ แก้ไขไม่ได้` };
+  }
+
+  await prisma.entry.update({
+    where: { id: entryId },
+    data: { expenseGroupId, updatedById: user.id },
+  });
+  revalidatePath("/expense");
+  revalidatePath("/summary");
+  return { ok: true, id: entryId };
+}
