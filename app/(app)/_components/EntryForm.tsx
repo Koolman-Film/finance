@@ -49,8 +49,14 @@ type Props = {
 
 type FileKind = "JOB_SHEET" | "INCOME_PROOF" | "EXPENSE_RECEIPT";
 
+/// Decide what to pre-fill in the branch dropdown.
+///   - STAFF: use their user.branchId hint (set only for single-branch staff);
+///     otherwise leave empty so they have to pick explicitly.
+///   - ADMIN: default to the first branch in the list.
 function defaultBranchId(user: AppUser, branches: Props["branches"]): string {
-  if (user.role === "STAFF" && user.branchId) return user.branchId;
+  if (user.role === "STAFF") {
+    return user.branchId && branches.some((b) => b.id === user.branchId) ? user.branchId : "";
+  }
   return branches[0]?.id ?? "";
 }
 
@@ -221,13 +227,17 @@ export function EntryForm({
       <div className="bg-muted/40 grid grid-cols-1 gap-4 rounded-lg p-4 md:grid-cols-2">
         <div className="space-y-1.5">
           <Label>สาขา</Label>
+          {/* STAFF with exactly one accessible branch sees it as a locked
+              read-only select (no choice to make). STAFF with multiple, and
+              ADMIN, see a real dropdown. The form refuses to submit until
+              branchId is set — server-side canWriteToBranch enforces too. */}
           <Select
             value={branchId}
             onValueChange={setBranchId}
-            disabled={currentUser.role === "STAFF"}
+            disabled={currentUser.role === "STAFF" && branches.length <= 1}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="— เลือกสาขา —" />
             </SelectTrigger>
             <SelectContent>
               {branches.map((b) => (

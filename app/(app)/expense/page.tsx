@@ -69,11 +69,15 @@ export default async function ExpensePage({
     prisma.monthLock.findMany({ select: { yyyyMm: true } }),
   ]);
 
+  // STAFF only ever picks among their granted branches in the new-entry form.
+  const formBranches =
+    user.role === "ADMIN" ? branches : branches.filter((b) => user.branchIds.includes(b.id));
+
   return (
     <EntryListView
       type="EXPENSE"
       entries={entries.map(toClientEntry)}
-      branches={branches}
+      branches={formBranches}
       expenseSources={expenseSources}
       expenseGroups={expenseGroups}
       paymentMethods={paymentMethods}

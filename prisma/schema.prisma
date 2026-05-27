@@ -29,13 +29,20 @@ enum FileKind {
 }
 
 /// App user. id matches Supabase auth.users.id (UUID).
+///
+/// `branchId` is the *preferred default* branch — what pre-fills the new-entry
+/// form. The full access list lives in the `branches` join (UserBranch). For
+/// STAFF with exactly one branch we point branchId at that one so the form
+/// pre-selects; for multi-branch STAFF we leave it null so they must pick
+/// explicitly. ADMIN ignores both (sees everything).
 model User {
   id          String   @id @db.Uuid
   email       String   @unique
   displayName String
   role        Role     @default(STAFF)
   branchId    String?  @db.Uuid
-  branch      Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  branch      Branch?  @relation("UserDefaultBranch", fields: [branchId], references: [id], onDelete: SetNull)
+  branches    UserBranch[]
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -55,10 +62,26 @@ model Branch {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users   User[]
-  entries Entry[]
+  defaultForUsers User[]       @relation("UserDefaultBranch")
+  userGrants      UserBranch[]
+  entries         Entry[]
 
   @@map("branches")
+}
+
+/// Many-to-many grant: a STAFF user may have access to multiple branches.
+/// ADMIN doesn't need rows here — they see all branches unconditionally.
+/// Cascade-on-delete on both sides so deleting a user or branch cleans up.
+model UserBranch {
+  userId    String   @db.Uuid
+  branchId  String   @db.Uuid
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([userId, branchId])
+  @@index([branchId])
+  @@map("user_branches")
 }
 
 model ExpenseSource {

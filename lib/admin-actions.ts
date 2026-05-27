@@ -456,15 +456,30 @@ export async function toggleProductActive(id: string, active: boolean): Promise<
 // Users
 // ============================================================================
 
+// branchIds arrives as a comma-separated string from the AddUserDialog form
+// (HTML forms can't carry arrays directly). We split + dedupe + validate
+// each entry as a UUID.
+const branchIdsSchema = z
+  .string()
+  .or(z.literal(""))
+  .transform((v) => {
+    if (!v) return [] as string[];
+    return Array.from(
+      new Set(
+        v
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    );
+  })
+  .pipe(z.array(z.string().uuid("รหัสสาขาไม่ถูกต้อง")));
+
 const createUserSchema = z.object({
   email: z.string().trim().toLowerCase().email("อีเมลไม่ถูกต้อง"),
   displayName: z.string().trim().min(1, "กรุณากรอกชื่อ").max(100),
   role: z.enum(["ADMIN", "STAFF"]),
-  branchId: z
-    .string()
-    .uuid()
-    .nullable()
-    .or(z.literal("").transform(() => null)),
+  branchIds: branchIdsSchema,
 });
 
 function supabaseAdmin() {
@@ -493,7 +508,7 @@ export async function createUser(_prev: ActionResult, form: FormData): Promise<A
     email: form.get("email"),
     displayName: form.get("displayName"),
     role: form.get("role"),
-    branchId: form.get("branchId"),
+    branchIds: form.get("branchIds"),
   });
   if (!parsed.success) {
     return {
@@ -503,13 +518,19 @@ export async function createUser(_prev: ActionResult, form: FormData): Promise<A
     };
   }
   const data = parsed.data;
-  if (data.role === "STAFF" && !data.branchId) {
+  if (data.role === "STAFF" && data.branchIds.length === 0) {
     return {
       ok: false,
-      error: "พนักงานสาขาต้องมีสาขากำกับ",
-      fieldErrors: { branchId: "เลือกสาขา" },
+      error: "พนักงานสาขาต้องมีสาขาอย่างน้อย 1 สาขา",
+      fieldErrors: { branchIds: "เลือกสาขาอย่างน้อย 1 รายการ" },
     };
   }
+
+  // STAFF with exactly one branch gets it as their "preferred default" so the
+  // new-entry form pre-selects. STAFF with multiple branches must pick each
+  // time, so branchId stays null. ADMIN never has a default.
+  const preferredDefaultId =
+    data.role === "STAFF" && data.branchIds.length === 1 ? data.branchIds[0] : null;
 
   const admin = supabaseAdmin();
   const origin = await siteOrigin();
@@ -533,7 +554,13 @@ export async function createUser(_prev: ActionResult, form: FormData): Promise<A
         email: data.email,
         displayName: data.displayName,
         role: data.role,
-        branchId: data.role === "STAFF" ? data.branchId : null,
+        branchId: preferredDefaultId,
+        // ADMIN gets no grants — scope ignores them anyway. STAFF gets one
+        // row per selected branch.
+        branches:
+          data.role === "STAFF"
+            ? { create: data.branchIds.map((branchId) => ({ branchId })) }
+            : undefined,
       },
     });
   } catch (err) {
@@ -607,13 +634,16 @@ export async function updateUser(
   patch: {
     displayName?: string;
     role?: "ADMIN" | "STAFF";
-    branchId?: string | null;
+    /// Full replacement of the user's branch grants. If provided, the join
+    /// table is reconciled (rows added/removed to match). User.branchId is
+    /// re-derived: exactly one branch → set it as the default; otherwise null.
+    branchIds?: string[];
     active?: boolean;
   },
 ): Promise<ActionResult> {
   await requireAdmin();
-  if (patch.role === "STAFF" && patch.branchId === null) {
-    return { ok: false, error: "พนักงานสาขาต้องมีสาขากำกับ" };
+  if (patch.role === "STAFF" && patch.branchIds && patch.branchIds.length === 0) {
+    return { ok: false, error: "พนักงานสาขาต้องมีสาขาอย่างน้อย 1 สาขา" };
   }
 
   const target = await prisma.user.findUnique({
@@ -641,15 +671,55 @@ export async function updateUser(
     }
   }
 
-  const data: Prisma.UserUpdateInput = {};
-  if (patch.displayName !== undefined) data.displayName = patch.displayName;
-  if (patch.role !== undefined) data.role = patch.role;
-  if (patch.branchId !== undefined) {
-    data.branch = patch.branchId ? { connect: { id: patch.branchId } } : { disconnect: true };
-  }
-  if (patch.active !== undefined) data.active = patch.active;
+  const baseUpdate: Prisma.UserUpdateInput = {};
+  if (patch.displayName !== undefined) baseUpdate.displayName = patch.displayName;
+  if (patch.role !== undefined) baseUpdate.role = patch.role;
+  if (patch.active !== undefined) baseUpdate.active = patch.active;
 
-  await prisma.user.update({ where: { id }, data });
+  // Branch grants + the derived preferred default are a small reconciliation
+  // step. We do it in a transaction so the join-table state and User.branchId
+  // can never disagree mid-flight.
+  if (patch.branchIds !== undefined) {
+    // STAFF with exactly one branch keeps it as their default (auto-fills the
+    // new-entry form). Anyone else (multi-branch STAFF, ADMIN) gets null —
+    // ADMIN doesn't need a default; multi-branch STAFF must pick each time.
+    const preferredDefaultId =
+      nextRole === "STAFF" && patch.branchIds.length === 1 ? patch.branchIds[0] : null;
+    const branchIds = patch.branchIds;
+
+    await prisma.$transaction([
+      // Disconnect first so the FK on UserBranch doesn't block grant deletes
+      // that include the row currently referenced as the default.
+      prisma.user.update({
+        where: { id },
+        data: { ...baseUpdate, branch: { disconnect: true } },
+      }),
+      // Remove grants that aren't in the new list. When the new list is
+      // empty (e.g. promoting STAFF→ADMIN), wipe everything.
+      branchIds.length > 0
+        ? prisma.userBranch.deleteMany({
+            where: { userId: id, branchId: { notIn: branchIds } },
+          })
+        : prisma.userBranch.deleteMany({ where: { userId: id } }),
+      ...(branchIds.length
+        ? [
+            prisma.userBranch.createMany({
+              data: branchIds.map((branchId) => ({ userId: id, branchId })),
+              skipDuplicates: true,
+            }),
+          ]
+        : []),
+      prisma.user.update({
+        where: { id },
+        data: preferredDefaultId
+          ? { branch: { connect: { id: preferredDefaultId } } }
+          : { branch: { disconnect: true } },
+      }),
+    ]);
+  } else if (Object.keys(baseUpdate).length > 0) {
+    await prisma.user.update({ where: { id }, data: baseUpdate });
+  }
+
   revalidatePath("/admin/users");
   return { ok: true };
 }

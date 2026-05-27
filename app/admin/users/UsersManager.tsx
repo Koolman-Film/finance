@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -49,8 +50,13 @@ type User = {
   email: string;
   displayName: string;
   role: "ADMIN" | "STAFF";
-  branchId: string | null;
-  branchName: string | null;
+  /// User.branchId — the "preferred default" used to pre-fill the new-entry
+  /// form. Set when a STAFF user has exactly one branch; null otherwise.
+  defaultBranchId: string | null;
+  defaultBranchName: string | null;
+  /// Full access list (UserBranch grants). Empty for ADMIN; never empty for
+  /// STAFF (server enforces "at least one").
+  branchIds: string[];
   active: boolean;
 };
 
@@ -142,7 +148,7 @@ function UserRow({
   function patch(p: {
     displayName?: string;
     role?: "ADMIN" | "STAFF";
-    branchId?: string | null;
+    branchIds?: string[];
     active?: boolean;
   }) {
     setError(null);
@@ -278,12 +284,22 @@ function UserRow({
       <td className="p-3">
         <Select
           value={user.role}
-          onValueChange={(v) =>
-            patch({
-              role: v as "ADMIN" | "STAFF",
-              branchId: v === "ADMIN" ? null : (user.branchId ?? branches[0]?.id ?? null),
-            })
-          }
+          onValueChange={(v) => {
+            // STAFF → ADMIN: clear all branch grants (admin sees everything).
+            // ADMIN → STAFF: keep any existing grants; if empty, seed with the
+            // first available branch so the server's "STAFF must have ≥ 1"
+            // guard doesn't reject the role swap.
+            const nextRole = v as "ADMIN" | "STAFF";
+            const nextBranchIds =
+              nextRole === "ADMIN"
+                ? []
+                : user.branchIds.length > 0
+                  ? user.branchIds
+                  : branches[0]
+                    ? [branches[0].id]
+                    : [];
+            patch({ role: nextRole, branchIds: nextBranchIds });
+          }}
           disabled={pending || protectedLastAdmin}
         >
           <SelectTrigger className="h-8 w-32" title={lockReason}>
@@ -297,22 +313,12 @@ function UserRow({
       </td>
       <td className="p-3">
         {user.role === "STAFF" ? (
-          <Select
-            value={user.branchId ?? ""}
-            onValueChange={(v) => patch({ branchId: v || null })}
+          <BranchMultiSelect
+            value={user.branchIds}
+            options={branches}
+            onChange={(next) => patch({ branchIds: next })}
             disabled={pending}
-          >
-            <SelectTrigger className="h-8 w-40">
-              <SelectValue placeholder="เลือกสาขา" />
-            </SelectTrigger>
-            <SelectContent>
-              {branches.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  {b.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         ) : (
           <span className="text-muted-foreground text-xs">— ทุกสาขา —</span>
         )}
@@ -526,7 +532,10 @@ function AddUserDialog({
 }) {
   const [state, formAction, pending] = useActionState(createUser, IDLE);
   const [role, setRole] = useState<"ADMIN" | "STAFF">("STAFF");
-  const [branchId, setBranchId] = useState<string>(branches[0]?.id ?? "");
+  // Initialize with the first branch checked so a single-click STAFF invite
+  // doesn't require the admin to also open the popover. Cleared when role
+  // flips to ADMIN.
+  const [branchIds, setBranchIds] = useState<string[]>(branches[0] ? [branches[0].id] : []);
 
   useEffect(() => {
     if (state && "ok" in state && state.ok) onOpenChange(false);
@@ -544,7 +553,13 @@ function AddUserDialog({
         </DialogHeader>
         <form action={formAction} className="space-y-3">
           <input type="hidden" name="role" value={role} />
-          <input type="hidden" name="branchId" value={role === "STAFF" ? branchId : ""} />
+          {/* HTML forms can't carry arrays. Comma-join here; the server
+              schema splits it back into a string[]. */}
+          <input
+            type="hidden"
+            name="branchIds"
+            value={role === "STAFF" ? branchIds.join(",") : ""}
+          />
 
           <div className="space-y-1.5">
             <Label htmlFor="add-email">อีเมล</Label>
@@ -572,21 +587,15 @@ function AddUserDialog({
           </div>
           {role === "STAFF" && (
             <div className="space-y-1.5">
-              <Label>สาขา</Label>
-              <Select value={branchId} onValueChange={setBranchId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {fieldErrors.branchId && (
-                <p className="text-destructive text-xs">{fieldErrors.branchId}</p>
+              <Label>สาขา (ติ๊กได้หลายสาขา)</Label>
+              <BranchMultiSelect
+                value={branchIds}
+                options={branches}
+                onChange={setBranchIds}
+                disabled={pending}
+              />
+              {fieldErrors.branchIds && (
+                <p className="text-destructive text-xs">{fieldErrors.branchIds}</p>
               )}
             </div>
           )}
@@ -614,5 +623,75 @@ function AddUserDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/// Compact multi-branch picker — popover with checkboxes. Used both inline in
+/// the user row (admin can re-assign branches on the fly) and in the invite
+/// dialog. Auto-saves via the onChange callback; caller decides whether to
+/// fire on every toggle or batch.
+function BranchMultiSelect({
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  value: string[];
+  options: Branch[];
+  onChange: (next: string[]) => void;
+  disabled?: boolean;
+}) {
+  const selectedNames = options.filter((b) => value.includes(b.id)).map((b) => b.name);
+  const label =
+    selectedNames.length === 0
+      ? "เลือกสาขา"
+      : selectedNames.length === 1
+        ? selectedNames[0]
+        : `${selectedNames.length} สาขา`;
+
+  function toggle(id: string) {
+    onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 w-44 justify-between"
+          disabled={disabled}
+          title={selectedNames.length > 1 ? selectedNames.join(", ") : undefined}
+        >
+          <span className="truncate">{label}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="start">
+        <div className="max-h-64 space-y-0.5 overflow-y-auto">
+          {options.length === 0 ? (
+            <p className="text-muted-foreground p-2 text-xs">ยังไม่มีสาขา</p>
+          ) : (
+            options.map((b) => {
+              const checked = value.includes(b.id);
+              return (
+                <label
+                  key={b.id}
+                  className="hover:bg-muted/60 flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(b.id)}
+                    className="size-3.5"
+                  />
+                  {b.name}
+                </label>
+              );
+            })
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

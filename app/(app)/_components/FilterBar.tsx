@@ -20,9 +20,12 @@ import { currentYyyyMm } from "@/lib/thai-date";
 type Props = {
   branches: { id: string; name: string }[];
   canSelectAllBranches: boolean;
+  /// Label shown on the "all" option in the branch dropdown. ADMIN sees
+  /// "ทุกสาขา"; multi-branch STAFF sees "ทุกสาขาของฉัน".
+  allBranchesLabel?: string;
 };
 
-export function FilterBar({ branches, canSelectAllBranches }: Props) {
+export function FilterBar({ branches, canSelectAllBranches, allBranchesLabel = "ทุกสาขา" }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
@@ -87,7 +90,7 @@ export function FilterBar({ branches, canSelectAllBranches }: Props) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {canSelectAllBranches && <SelectItem value="all">ทุกสาขา</SelectItem>}
+            {canSelectAllBranches && <SelectItem value="all">{allBranchesLabel}</SelectItem>}
             {branches.map((b) => (
               <SelectItem key={b.id} value={b.id}>
                 {b.name}

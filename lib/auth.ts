@@ -9,8 +9,14 @@ export type AppUser = {
   email: string;
   displayName: string;
   role: "ADMIN" | "STAFF";
+  /// User's "preferred default" branch — pre-fills the new-entry form. Null
+  /// for ADMIN and for multi-branch STAFF (who must pick explicitly).
   branchId: string | null;
   branchName: string | null;
+  /// Full access list. For STAFF this is the set of branches they can read
+  /// + write. ADMIN has access to every branch unconditionally — branchIds
+  /// is the empty array for ADMIN and callers must check role before using it.
+  branchIds: string[];
 };
 
 /// Returns the authenticated app user (Supabase session ∩ our `users` table)
@@ -25,7 +31,10 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
 
   const row = await prisma.user.findUnique({
     where: { id: user.id },
-    include: { branch: { select: { name: true } } },
+    include: {
+      branch: { select: { name: true } },
+      branches: { select: { branchId: true } },
+    },
   });
   if (!row || !row.active) return null;
 
@@ -36,6 +45,7 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
     role: row.role,
     branchId: row.branchId,
     branchName: row.branch?.name ?? null,
+    branchIds: row.branches.map((b) => b.branchId),
   };
 });
 

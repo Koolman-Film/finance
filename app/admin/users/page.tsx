@@ -16,6 +16,7 @@ export default async function UsersPage() {
         branchId: true,
         active: true,
         branch: { select: { name: true } },
+        branches: { select: { branchId: true } },
       },
     }),
     prisma.branch.findMany({
@@ -35,8 +36,9 @@ export default async function UsersPage() {
         email: u.email,
         displayName: u.displayName,
         role: u.role,
-        branchId: u.branchId,
-        branchName: u.branch?.name ?? null,
+        defaultBranchId: u.branchId,
+        defaultBranchName: u.branch?.name ?? null,
+        branchIds: u.branches.map((b) => b.branchId),
         active: u.active,
       }))}
       branches={branches}
